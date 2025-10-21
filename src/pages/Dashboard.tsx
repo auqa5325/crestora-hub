@@ -1,38 +1,46 @@
 import DashboardLayout from "@/components/DashboardLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Calendar, Users, Trophy, DollarSign, TrendingUp, Award } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { apiService, DashboardStats } from "@/services/api";
 
 const Dashboard = () => {
-  const stats = [
+  const { data: dashboardStats, isLoading, error } = useQuery<DashboardStats>({
+    queryKey: ['dashboard-stats'],
+    queryFn: () => apiService.getDashboardStats(),
+    refetchInterval: 30000, // Refetch every 30 seconds
+  });
+
+  const stats = dashboardStats ? [
     {
       title: "Total Teams",
-      value: "156",
-      change: "+12 this week",
+      value: dashboardStats.teams.total.toString(),
+      change: `${dashboardStats.teams.active} active`,
       icon: Users,
       color: "text-primary",
     },
     {
       title: "Active Events",
-      value: "13",
-      change: "9 title + 4 rolling",
+      value: dashboardStats.events.total.toString(),
+      change: `${dashboardStats.events.title_events} title + ${dashboardStats.events.rolling_events} rolling`,
       icon: Calendar,
       color: "text-accent",
     },
     {
       title: "Ongoing Rounds",
-      value: "8",
-      change: "3 completed today",
+      value: dashboardStats.rounds.ongoing.toString(),
+      change: "Teams in progress",
       icon: Trophy,
       color: "text-primary",
     },
     {
       title: "Prize Pool",
-      value: "₹12,600",
+      value: `₹${dashboardStats.prize_pool.toLocaleString()}`,
       change: "Distributed soon",
       icon: DollarSign,
       color: "text-accent",
     },
-  ];
+  ] : [];
 
   const recentEvents = [
     { name: "Creative Writing", status: "In Progress", teams: 24 },
@@ -40,6 +48,50 @@ const Dashboard = () => {
     { name: "Photography Contest", status: "In Progress", teams: 18 },
     { name: "Dance Battle", status: "Completed", teams: 28 },
   ];
+
+  if (isLoading) {
+    return (
+      <DashboardLayout>
+        <div className="space-y-6">
+          <div>
+            <h1 className="text-3xl font-bold mb-2">Dashboard Overview</h1>
+            <p className="text-muted-foreground">
+              Loading dashboard data...
+            </p>
+          </div>
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+            {[...Array(4)].map((_, i) => (
+              <Card key={i} className="shadow-card">
+                <CardHeader className="flex flex-row items-center justify-between pb-2">
+                  <div className="h-4 w-20 bg-muted animate-pulse rounded" />
+                  <div className="h-5 w-5 bg-muted animate-pulse rounded" />
+                </CardHeader>
+                <CardContent>
+                  <div className="h-8 w-16 bg-muted animate-pulse rounded mb-2" />
+                  <div className="h-3 w-24 bg-muted animate-pulse rounded" />
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
+      </DashboardLayout>
+    );
+  }
+
+  if (error) {
+    return (
+      <DashboardLayout>
+        <div className="space-y-6">
+          <div>
+            <h1 className="text-3xl font-bold mb-2">Dashboard Overview</h1>
+            <p className="text-muted-foreground text-red-500">
+              Error loading dashboard data. Please try again.
+            </p>
+          </div>
+        </div>
+      </DashboardLayout>
+    );
+  }
 
   return (
     <DashboardLayout>

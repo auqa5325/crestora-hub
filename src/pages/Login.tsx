@@ -1,92 +1,141 @@
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Award, Lock, User } from "lucide-react";
-import { toast } from "sonner";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Loader2, Lock, User, Eye, EyeOff } from "lucide-react";
+import { useAuth } from '@/contexts/AuthContext';
 
 const Login = () => {
-  const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState('');
+  
+  const { login } = useAuth();
   const navigate = useNavigate();
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    // Mock authentication - replace with actual auth logic
-    if (username && password) {
-      localStorage.setItem("userRole", "admin"); // Mock role
-      toast.success("Login successful!");
-      navigate("/dashboard");
-    } else {
-      toast.error("Please enter username and password");
+    setIsLoading(true);
+    setError('');
+
+    try {
+      const success = await login(username, password);
+      if (success) {
+        navigate('/events');
+      } else {
+        setError('Invalid username or password');
+      }
+    } catch (error) {
+      setError('Login failed. Please try again.');
+    } finally {
+      setIsLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen w-full flex items-center justify-center gradient-hero p-4">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary/10 via-background to-accent/10 p-4">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
-          <div className="flex items-center justify-center mb-4">
-            <div className="w-16 h-16 rounded-2xl bg-accent flex items-center justify-center shadow-elevated">
-              <Award className="w-10 h-10 text-accent-foreground" />
-            </div>
-          </div>
-          <h1 className="text-4xl font-bold text-white mb-2">Crestora'25</h1>
-          <p className="text-white/80 text-lg">Personality Development Association</p>
-          <p className="text-white/60 text-sm">MIT Campus, Anna University</p>
+          <h1 className="text-4xl font-bold text-primary mb-2">Crestora'25</h1>
+          <p className="text-muted-foreground">Event Management System</p>
         </div>
 
-        <Card className="shadow-elevated border-0">
-          <CardHeader className="space-y-1">
-            <CardTitle className="text-2xl font-bold">Welcome Back</CardTitle>
+        <Card className="shadow-lg">
+          <CardHeader className="text-center">
+            <CardTitle className="text-2xl">Welcome Back</CardTitle>
             <CardDescription>
-              Enter your credentials to access the event management dashboard
+              Sign in to your account to continue
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <form onSubmit={handleLogin} className="space-y-4">
+            <form onSubmit={handleSubmit} className="space-y-4">
+              {error && (
+                <Alert variant="destructive">
+                  <AlertDescription>{error}</AlertDescription>
+                </Alert>
+              )}
+
               <div className="space-y-2">
                 <Label htmlFor="username">Username</Label>
                 <div className="relative">
-                  <User className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                  <User className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <Input
                     id="username"
+                    type="text"
                     placeholder="Enter your username"
                     value={username}
                     onChange={(e) => setUsername(e.target.value)}
-                    className="pl-9"
+                    className="pl-10"
                     required
+                    disabled={isLoading}
                   />
                 </div>
               </div>
+
               <div className="space-y-2">
                 <Label htmlFor="password">Password</Label>
                 <div className="relative">
-                  <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                  <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <Input
                     id="password"
-                    type="password"
+                    type={showPassword ? "text" : "password"}
                     placeholder="Enter your password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="pl-9"
+                    className="pl-10 pr-10"
                     required
+                    disabled={isLoading}
                   />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    disabled={isLoading}
+                  >
+                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
                 </div>
               </div>
-              <Button type="submit" className="w-full gradient-hero text-white font-medium">
-                Sign In
+
+              <Button
+                type="submit"
+                className="w-full gradient-hero"
+                disabled={isLoading}
+              >
+                {isLoading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Signing in...
+                  </>
+                ) : (
+                  'Sign In'
+                )}
               </Button>
             </form>
+
+            <div className="mt-6 text-center">
+              <p className="text-sm text-muted-foreground">
+                Demo accounts:
+              </p>
+              <div className="mt-2 space-y-1 text-xs text-muted-foreground">
+                <p><strong>Admin:</strong> admin / admin123</p>
+                <p><strong>Judge:</strong> judge / judge123</p>
+                <p><strong>Team:</strong> team / team123</p>
+              </div>
+            </div>
           </CardContent>
         </Card>
 
-        <p className="text-center text-white/60 text-sm mt-6">
-          Event Management System v1.0
-        </p>
+        <div className="mt-6 text-center">
+          <p className="text-sm text-muted-foreground">
+            © 2025 Personality Development Association, MIT Campus
+          </p>
+        </div>
       </div>
     </div>
   );

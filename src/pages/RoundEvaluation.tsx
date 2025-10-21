@@ -1,0 +1,1212 @@
+import DashboardLayout from "@/components/DashboardLayout";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { 
+  Target, 
+  Users, 
+  Settings, 
+  Save, 
+  Lock, 
+  Download,
+  Plus,
+  Trash2,
+  Edit,
+  CheckCircle,
+  AlertTriangle,
+  ArrowLeft,
+  RefreshCw,
+  Trophy,
+  Filter
+} from "lucide-react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { apiService, Team, Event, TeamScore, RoundStats } from "@/services/api";
+import { useState, useEffect, useRef } from "react";
+import { useAuth } from "@/contexts/AuthContext";
+import { useToast } from "@/hooks/use-toast";
+import { useNavigate, useSearchParams } from "react-router-dom";
+
+interface Criteria {
+  name: string;
+  max_points: number;
+}
+
+interface TeamEvaluation {
+  team_id: string;
+  team_name: string;
+  leader_name: string;
+  criteria_scores: Record<string, number>;
+  total_score: number;
+  normalized_score: number;
+  is_evaluated: boolean;
+}
+
+const RoundEvaluation = () => {
+  const { user } = useAuth();
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  
+  const [selectedRoundId, setSelectedRoundId] = useState<number | null>(null);
+  const [criteria, setCriteria] = useState<Criteria[]>([]);
+  const [teamEvaluations, setTeamEvaluations] = useState<TeamEvaluation[]>([]);
+  const [isCriteriaModalOpen, setIsCriteriaModalOpen] = useState(false);
+  const [isFreezeDialogOpen, setIsFreezeDialogOpen] = useState(false);
+  const [isShortlistModalOpen, setIsShortlistModalOpen] = useState(false);
+  const [isShortlistConfirmOpen, setIsShortlistConfirmOpen] = useState(false);
+  const [shortlistType, setShortlistType] = useState<'top_k' | 'threshold'>('top_k');
+  const [shortlistValue, setShortlistValue] = useState<number>(5);
+  const [roundStats, setRoundStats] = useState<RoundStats | null>(null);
+  const initializedRef = useRef(false);
+  const [unsavedChanges, setUnsavedChanges] = useState<Set<string>>(new Set());
+  const [savedScores, setSavedScores] = useState<Map<string, number>>(new Map());
+
+  // Get round ID from URL params
+  useEffect(() => {
+    const roundId = searchParams.get('roundId');
+    if (roundId) {
+      setSelectedRoundId(parseInt(roundId));
+      // Reset initialization flag when round changes
+      initializedRef.current = false;
+    }
+  }, [searchParams]);
+
+  // Fetch events and rounds
+  const { data: events, isLoading: eventsLoading } = useQuery<Event[]>({
+    queryKey: ['events'],
+    queryFn: () => apiService.getEvents(),
+    refetchInterval: 30000,
+  });
+
+  // Fetch teams (all statuses to show ACTIVE and ELIMINATED badges)
+  const { data: teams, isLoading: teamsLoading } = useQuery<Team[]>({
+    queryKey: ['teams'],
+    queryFn: () => apiService.getTeams(), // Remove status filter to get all teams
+    refetchInterval: 30000,
+  });
+
+  // Get all rounds from events
+  const allRounds = events?.flatMap(event => 
+    event.rounds.map(round => ({
+      ...round,
+      event_name: event.name,
+      event_type: event.type
+    }))
+  ) || [];
+
+  // Filter rounds based on user role
+  const availableRounds = user?.role === 'admin' 
+    ? allRounds 
+    : allRounds.filter(round => round.club === user?.club);
+
+  // Get selected round
+  const selectedRound = availableRounds.find(round => round.id === selectedRoundId);
+
+  // Fetch round evaluations when a round is selected
+  const { data: roundEvaluations, isLoading: evaluationsLoading, refetch: refetchEvaluations } = useQuery<TeamScore[]>({
+    queryKey: ['round-evaluations', selectedRoundId],
+    queryFn: () => selectedRoundId ? apiService.getRoundEvaluations(selectedRoundId) : Promise.resolve([]),
+    enabled: !!selectedRoundId,
+    refetchInterval: false, // Disable auto-refetch to prevent form resets
+  });
+
+  // Fetch round stats when a round is selected
+  const { data: stats } = useQuery<RoundStats>({
+    queryKey: ['round-stats', selectedRoundId],
+    queryFn: () => selectedRoundId ? apiService.getRoundStats(selectedRoundId) : Promise.resolve(null),
+    enabled: !!selectedRoundId,
+    refetchInterval: false, // Disable auto-refetch to prevent form resets
+  });
+
+  // Update criteria mutation
+  const updateCriteriaMutation = useMutation({
+    mutationFn: (criteria: Criteria[]) => 
+      apiService.updateRoundCriteria(selectedRoundId!, criteria),
+    onSuccess: () => {
+      toast({
+        title: "Criteria updated",
+        description: "Evaluation criteria have been updated successfully.",
+      });
+      queryClient.invalidateQueries({ queryKey: ['round-stats', selectedRoundId] });
+      setIsCriteriaModalOpen(false);
+    },
+    onError: (error) => {
+      toast({
+        title: "Error",
+        description: "Failed to update criteria. Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Evaluate team mutation
+  const evaluateTeamMutation = useMutation({
+    mutationFn: ({ teamId, criteriaScores, isAlreadyEvaluated }: { teamId: string; criteriaScores: Record<string, number>; isAlreadyEvaluated?: boolean }) =>
+      apiService.evaluateTeam(selectedRoundId!, teamId, criteriaScores),
+    onSuccess: (data, variables) => {
+      // Only show success message for newly evaluated teams, not for updates to already evaluated teams
+      if (!variables.isAlreadyEvaluated) {
+      toast({
+        title: "Evaluation saved",
+        description: "Team evaluation has been saved successfully.",
+      });
+      }
+      queryClient.invalidateQueries({ queryKey: ['round-evaluations', selectedRoundId] });
+    },
+    onError: (error) => {
+      toast({
+        title: "Error",
+        description: "Failed to save evaluation. Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Freeze round mutation
+  const freezeRoundMutation = useMutation({
+    mutationFn: () => apiService.freezeRound(selectedRoundId!),
+    onSuccess: (data) => {
+      toast({
+        title: "Round frozen",
+        description: "Round has been frozen and statistics calculated.",
+      });
+      setRoundStats(data);
+      queryClient.invalidateQueries({ queryKey: ['round-stats', selectedRoundId] });
+      queryClient.invalidateQueries({ queryKey: ['round-evaluations', selectedRoundId] });
+      setIsFreezeDialogOpen(false);
+    },
+    onError: (error) => {
+      toast({
+        title: "Error",
+        description: "Failed to freeze round. Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Shortlist teams mutation
+  const shortlistTeamsMutation = useMutation({
+    mutationFn: ({ shortlistType, value }: { shortlistType: 'top_k' | 'threshold'; value: number }) =>
+      apiService.shortlistTeams(selectedRoundId!, shortlistType, value),
+    onSuccess: (data) => {
+      toast({
+        title: "Teams Shortlisted",
+        description: `${data.shortlisted_count} teams shortlisted, ${data.eliminated_count} teams eliminated.`,
+      });
+      queryClient.invalidateQueries({ queryKey: ['teams'] });
+      queryClient.invalidateQueries({ queryKey: ['round-stats', selectedRoundId] });
+      queryClient.invalidateQueries({ queryKey: ['round-evaluations', selectedRoundId] });
+      setIsShortlistModalOpen(false);
+      setIsShortlistConfirmOpen(false);
+    },
+    onError: (error: any) => {
+      console.error('Shortlist error:', error);
+      const errorMessage = error?.response?.data?.detail || error?.message || "Failed to shortlist teams. Please try again.";
+      toast({
+        title: "Error",
+        description: errorMessage,
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Initialize criteria and team evaluations
+  useEffect(() => {
+    console.log('RoundEvaluation: useEffect triggered', {
+      selectedRound: selectedRound?.name,
+      teamsCount: teams?.length,
+      roundEvaluationsCount: roundEvaluations?.length,
+      stats: stats,
+      initialized: initializedRef.current
+    });
+    
+    if (selectedRound && teams && roundEvaluations && !initializedRef.current) {
+      // Set criteria
+      if (selectedRound.criteria && selectedRound.criteria.length > 0) {
+        setCriteria(selectedRound.criteria);
+    } else {
+      setCriteria([{ name: "Overall Performance", max_points: 100 }]);
+    }
+
+      // Initialize team evaluations (only for ACTIVE teams)
+      const activeTeams = teams.filter(team => team.status === 'ACTIVE');
+      const evaluations: TeamEvaluation[] = activeTeams.map(team => {
+        const existingEvaluation = roundEvaluations.find(evaluation => evaluation.team_id === team.team_id);
+      
+      const criteria_scores: Record<string, number> = {};
+        const currentCriteria = selectedRound.criteria || [{ name: "Overall Performance", max_points: 100 }];
+        currentCriteria.forEach(criterion => {
+        criteria_scores[criterion.name] = existingEvaluation?.criteria_scores?.[criterion.name] || 0;
+      });
+      
+      const total_score = Object.values(criteria_scores).reduce((sum, score) => sum + score, 0);
+        const max_possible = currentCriteria.reduce((sum, c) => sum + c.max_points, 0);
+      const normalized_score = max_possible > 0 ? (total_score / max_possible) * 100 : 0;
+      
+      return {
+        team_id: team.team_id,
+        team_name: team.team_name,
+        leader_name: team.leader_name,
+        criteria_scores,
+        total_score,
+          normalized_score: Math.min(normalized_score, 100),
+          is_evaluated: total_score > 0
+      };
+    });
+    
+    setTeamEvaluations(evaluations);
+      
+      // Initialize saved scores for sorting
+      const initialSavedScores = new Map<string, number>();
+      evaluations.forEach(evaluation => {
+        if (evaluation.is_evaluated) {
+          initialSavedScores.set(evaluation.team_id, evaluation.normalized_score);
+        }
+      });
+      setSavedScores(initialSavedScores);
+      
+      initializedRef.current = true;
+      console.log('RoundEvaluation: Team evaluations initialized', evaluations);
+    }
+  }, [selectedRound, teams, roundEvaluations]);
+
+  // Update team evaluation
+  const updateTeamEvaluation = (teamId: string, criterionName: string, score: number) => {
+    console.log('RoundEvaluation: updateTeamEvaluation called', { teamId, criterionName, score });
+    
+    // Find the criterion to get max points
+    const criterion = criteria.find(c => c.name === criterionName);
+    const maxPoints = criterion?.max_points || 100;
+    
+    // Validate score doesn't exceed max points
+    const validatedScore = Math.min(Math.max(score, 0), maxPoints);
+    
+    // Mark as having unsaved changes
+    setUnsavedChanges(prev => new Set(prev).add(teamId));
+    
+    setTeamEvaluations(prev => {
+      const updated = prev.map(evaluation => {
+        if (evaluation.team_id === teamId) {
+          const newCriteriaScores = { ...evaluation.criteria_scores, [criterionName]: validatedScore };
+        const total_score = Object.values(newCriteriaScores).reduce((sum, s) => sum + s, 0);
+        const max_possible = criteria.reduce((sum, c) => sum + c.max_points, 0);
+        const normalized_score = max_possible > 0 ? (total_score / max_possible) * 100 : 0;
+        
+          const updatedEvaluation = {
+            ...evaluation,
+          criteria_scores: newCriteriaScores,
+          total_score,
+            normalized_score: Math.min(normalized_score, 100),
+            // Don't change is_evaluated here - only when saved
+            is_evaluated: evaluation.is_evaluated
+          };
+          
+          console.log('RoundEvaluation: Updated evaluation', updatedEvaluation);
+          return updatedEvaluation;
+        }
+        return evaluation;
+      });
+      console.log('RoundEvaluation: All evaluations after update', updated);
+      return updated;
+    });
+  };
+
+  // Validate score input
+  const validateScore = (score: number, criterionName: string): { isValid: boolean; message?: string } => {
+    const criterion = criteria.find(c => c.name === criterionName);
+    const maxPoints = criterion?.max_points || 100;
+    
+    if (score < 0) {
+      return { isValid: false, message: "Score cannot be negative" };
+    }
+    if (score > maxPoints) {
+      return { isValid: false, message: `Score cannot exceed ${maxPoints} points` };
+    }
+    return { isValid: true };
+  };
+
+  // Save team evaluation
+  const saveTeamEvaluation = (teamId: string) => {
+    const evaluation = teamEvaluations.find(evalItem => evalItem.team_id === teamId);
+    if (evaluation) {
+      // Validate all scores before saving
+      const hasInvalidScores = Object.entries(evaluation.criteria_scores).some(([criterionName, score]) => {
+        const validation = validateScore(score, criterionName);
+        return !validation.isValid;
+      });
+      
+      if (hasInvalidScores) {
+        toast({
+          title: "Invalid Scores",
+          description: "Please ensure all scores are within the valid range before saving.",
+          variant: "destructive",
+        });
+        return;
+      }
+      
+      // Mark as evaluated when saving
+      setTeamEvaluations(prev => prev.map(evalItem => 
+        evalItem.team_id === teamId 
+          ? { ...evalItem, is_evaluated: true }
+          : evalItem
+      ));
+      
+      // Remove from unsaved changes and update saved scores
+      setUnsavedChanges(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(teamId);
+        return newSet;
+      });
+      
+      // Update saved scores for sorting
+      setSavedScores(prev => {
+        const newMap = new Map(prev);
+        newMap.set(teamId, evaluation.normalized_score);
+        return newMap;
+      });
+      
+      evaluateTeamMutation.mutate({
+        teamId,
+        criteriaScores: evaluation.criteria_scores,
+        isAlreadyEvaluated: evaluation.is_evaluated
+      });
+    }
+  };
+
+  // Add criterion
+  const addCriterion = () => {
+    setCriteria([...criteria, { name: "", max_points: 10 }]);
+  };
+
+  // Remove criterion
+  const removeCriterion = (index: number) => {
+    setCriteria(criteria.filter((_, i) => i !== index));
+  };
+
+  // Update criterion
+  const updateCriterion = (index: number, field: keyof Criteria, value: string | number) => {
+    setCriteria(criteria.map((c, i) => 
+      i === index ? { ...c, [field]: value } : c
+    ));
+  };
+
+  // Save criteria
+  const saveCriteria = () => {
+    if (selectedRoundId) {
+      updateCriteriaMutation.mutate(criteria);
+    }
+  };
+
+  // Freeze round
+  const handleFreezeRound = () => {
+    freezeRoundMutation.mutate();
+  };
+
+  // Shortlist teams handlers
+  const handleShortlistTeams = () => {
+    // Reset values when opening modal
+    setShortlistType('top_k');
+    setShortlistValue(5);
+    setIsShortlistModalOpen(true);
+  };
+
+  const handleApplyShortlist = () => {
+    // Validate values before proceeding
+    if (shortlistType === 'top_k' && (shortlistValue <= 0 || shortlistValue > teamEvaluations.length)) {
+      toast({
+        title: "Invalid Input",
+        description: `Please enter a valid number between 1 and ${teamEvaluations.length}`,
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    if (shortlistType === 'threshold' && (shortlistValue < 0 || shortlistValue > 100)) {
+      toast({
+        title: "Invalid Input",
+        description: "Please enter a valid score between 0 and 100",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    setIsShortlistModalOpen(false);
+    setIsShortlistConfirmOpen(true);
+  };
+
+  const handleConfirmShortlist = () => {
+    shortlistTeamsMutation.mutate({
+      shortlistType,
+      value: shortlistValue
+    });
+  };
+
+  // Calculate team count for threshold
+  const getThresholdTeamCount = () => {
+    if (shortlistType === 'threshold') {
+      return teamEvaluations.filter(team => team.normalized_score >= shortlistValue).length;
+    }
+    return 0;
+  };
+
+  // Export round data
+  const exportRoundData = async () => {
+    if (!selectedRoundId) return;
+    
+    try {
+      const blob = await apiService.exportRoundData(selectedRoundId);
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `round_${selectedRoundId}_evaluations.csv`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (error) {
+      toast({
+        title: "Export failed",
+        description: "Failed to export round data. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Separate evaluated and non-evaluated teams
+  const evaluatedTeams = teamEvaluations
+    .filter(team => team.is_evaluated)
+    .sort((a, b) => {
+      // Use saved scores for sorting, fallback to current score if not saved yet
+      const scoreA = savedScores.get(a.team_id) ?? a.normalized_score;
+      const scoreB = savedScores.get(b.team_id) ?? b.normalized_score;
+      return scoreB - scoreA;
+    });
+  
+  const nonEvaluatedTeams = teamEvaluations
+    .filter(team => !team.is_evaluated)
+    .sort((a, b) => a.team_name.localeCompare(b.team_name));
+
+  if (eventsLoading || teamsLoading) {
+    return (
+      <DashboardLayout>
+        <div className="space-y-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-3xl font-bold mb-2">Round Evaluation</h1>
+              <p className="text-muted-foreground">Loading...</p>
+            </div>
+          </div>
+        </div>
+      </DashboardLayout>
+    );
+  }
+
+  if (!selectedRound) {
+    return (
+      <DashboardLayout>
+        <div className="space-y-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-3xl font-bold mb-2">Round Evaluation</h1>
+              <p className="text-muted-foreground text-red-500">
+                Round not found or you don't have access to it.
+              </p>
+            </div>
+            <Button variant="outline" onClick={() => navigate('/rounds')}>
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Back to Rounds
+            </Button>
+          </div>
+        </div>
+      </DashboardLayout>
+    );
+  }
+
+  return (
+    <DashboardLayout>
+      <div className="space-y-6">
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold mb-2">Round Evaluation</h1>
+            <p className="text-muted-foreground">
+              {selectedRound.name} - {selectedRound.event_name}
+            </p>
+            <p className="text-sm text-muted-foreground">
+              Club: {selectedRound.club || 'No club assigned'}
+            </p>
+          </div>
+            <div className="flex gap-2">
+            <Button variant="outline" onClick={() => navigate('/rounds')}>
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Back to Rounds
+            </Button>
+              <Button
+                variant="outline"
+                onClick={() => setIsCriteriaModalOpen(true)}
+              disabled={false}
+              >
+                <Settings className="h-4 w-4 mr-2" />
+                Manage Criteria
+              </Button>
+              <Button
+                variant="outline"
+                onClick={exportRoundData}
+              >
+                <Download className="h-4 w-4 mr-2" />
+                Export Data
+              </Button>
+            <Button
+              variant="outline"
+              onClick={() => {
+                refetchEvaluations();
+                initializedRef.current = false; // Allow re-initialization
+              }}
+            >
+              <RefreshCw className="h-4 w-4 mr-2" />
+              Refresh Data
+            </Button>
+            {!stats?.is_frozen && (user?.role === 'admin' || user?.role === 'clubs') && (
+              <Button
+                onClick={() => setIsFreezeDialogOpen(true)}
+                className="bg-red-600 hover:bg-red-700"
+              >
+                <Lock className="h-4 w-4 mr-2" />
+                Freeze Round
+              </Button>
+            )}
+            {stats?.is_frozen && user?.role === 'admin' && !stats?.is_evaluated && (
+              <Button
+                onClick={handleShortlistTeams}
+                className="bg-purple-600 hover:bg-purple-700"
+              >
+                <Trophy className="h-4 w-4 mr-2" />
+                Shortlist Teams
+              </Button>
+            )}
+            {stats?.is_frozen && user?.role === 'admin' && stats?.is_evaluated && (
+              <Button
+                disabled
+                className="bg-gray-400 cursor-not-allowed"
+              >
+                <Trophy className="h-4 w-4 mr-2" />
+                Teams Shortlisted
+              </Button>
+            )}
+          </div>
+        </div>
+
+        {/* Round Status */}
+        {stats?.is_frozen && (
+          <Card className="bg-blue-50 border-blue-200">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-blue-800">
+                <Lock className="h-5 w-5" />
+                Round Frozen
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div>
+                  <p className="text-sm text-blue-600">Max Score</p>
+                  <p className="text-2xl font-bold text-blue-800">{stats.max_score?.toFixed(1) || 'N/A'}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-blue-600">Min Score</p>
+                  <p className="text-2xl font-bold text-blue-800">{stats.min_score?.toFixed(1) || 'N/A'}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-blue-600">Average Score</p>
+                  <p className="text-2xl font-bold text-blue-800">{stats.avg_score?.toFixed(1) || 'N/A'}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-blue-600">Teams Evaluated</p>
+                  <p className="text-2xl font-bold text-blue-800">{stats.participated_count}</p>
+                </div>
+              </div>
+              {stats.top_3_teams && stats.top_3_teams.length > 0 && (
+                <div className="mt-4">
+                  <p className="text-sm text-blue-600 mb-2">Top 3 Teams:</p>
+                  <div className="flex gap-4">
+                    {stats.top_3_teams.map((team, index) => (
+                      <div key={team.team_id} className="flex items-center gap-2">
+                        <Badge variant="secondary">#{index + 1}</Badge>
+                        <span className="text-sm font-medium">{team.team_name}</span>
+                        <span className="text-sm text-blue-600">({team.score.toFixed(1)})</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Teams List - Unified when frozen, split when active */}
+        {stats?.is_frozen ? (
+          /* Frozen Round - Single sorted list */
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+                <Trophy className="h-5 w-5 text-blue-600" />
+                All Teams - Sorted by Score ({teamEvaluations.length})
+            </CardTitle>
+            <CardDescription>
+                All teams sorted by normalized score (highest to lowest)
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+              {!teams || teams.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  <Trophy className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                  <p>No teams found.</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {(() => {
+                    // For frozen view, show ALL teams (including ELIMINATED) with their scores
+                    const allTeamsWithScores = teams.map(team => {
+                      const evaluation = teamEvaluations.find(evalItem => evalItem.team_id === team.team_id);
+                      return {
+                        team_id: team.team_id,
+                        team_name: team.team_name,
+                        leader_name: team.leader_name,
+                        status: team.status,
+                        normalized_score: evaluation?.normalized_score || 0,
+                        total_score: evaluation?.total_score || 0,
+                        criteria_scores: evaluation?.criteria_scores || {}
+                      };
+                    });
+                    
+                    // Sort by normalized score (descending)
+                    allTeamsWithScores.sort((a, b) => b.normalized_score - a.normalized_score);
+                    
+                    return allTeamsWithScores.map((teamData, index) => (
+                    <Card key={teamData.team_id} className={`${
+                      index < 3 ? 'border-yellow-300 bg-yellow-50' : 'border-gray-200 bg-white'
+                    }`}>
+                  <CardContent className="p-4">
+                      <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-4">
+                            <div className="text-2xl font-bold text-blue-600">
+                              #{index + 1}
+                      </div>
+                            <div>
+                              <h3 className="font-semibold flex items-center gap-2">
+                                {teamData.team_name}
+                                {index < 3 && <Badge variant="secondary" className="text-xs">TOP 3</Badge>}
+                              </h3>
+                              <div className="flex items-center gap-2">
+                      <p className="text-sm text-muted-foreground">
+                                  Leader: {teamData.leader_name}
+                                </p>
+                                {teamData.status === 'ELIMINATED' ? (
+                                  <Badge variant="destructive" className="text-xs">ELIMINATED</Badge>
+                                ) : teamData.status === 'ACTIVE' ? (
+                                  <Badge variant="default" className="text-xs bg-green-100 text-green-800">ACTIVE</Badge>
+                                ) : null}
+                        </div>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <div className="text-2xl font-bold text-blue-600">
+                              {teamData.normalized_score.toFixed(1)}
+                            </div>
+                            <div className="text-sm text-muted-foreground">
+                              Normalized Score
+                            </div>
+                            <div className="text-xs text-muted-foreground">
+                              Raw: {teamData.total_score.toFixed(1)}
+                            </div>
+                          </div>
+                        </div>
+                        
+                        {/* Show criteria scores in a compact format */}
+                        <div className="mt-4 grid gap-2 md:grid-cols-2 lg:grid-cols-3">
+                          {criteria.map((criterion, criterionIndex) => (
+                            <div key={criterionIndex} className="flex justify-between items-center text-sm">
+                              <span className="text-muted-foreground">{criterion.name}:</span>
+                              <span className="font-medium">
+                                {teamData.criteria_scores[criterion.name] || 0}/{criterion.max_points}
+                              </span>
+                            </div>
+                          ))}
+                    </div>
+                  </CardContent>
+                </Card>
+                    ));
+                  })()}
+            </div>
+              )}
+          </CardContent>
+        </Card>
+        ) : (
+          /* Active Round - Split into evaluated and non-evaluated */
+          <>
+            {/* Evaluated Teams List */}
+          <Card>
+            <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                  <CheckCircle className="h-5 w-5 text-green-600" />
+                  Evaluated Teams ({evaluatedTeams.length})
+                  </CardTitle>
+                  <CardDescription>
+                  Teams that have been evaluated, sorted by normalized score
+                  </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {evaluatedTeams.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <CheckCircle className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                    <p>No teams have been evaluated yet.</p>
+                </div>
+                ) : (
+                  <div className="space-y-4">
+                    {evaluatedTeams.map((evaluation) => (
+                      <Card key={evaluation.team_id} className="border-green-200 bg-green-50">
+                        <CardContent className="p-4">
+                          <div className="space-y-4">
+                            <div className="flex items-center justify-between">
+                              <div>
+                                <h3 className="font-semibold flex items-center gap-2">
+                                  {evaluation.team_name}
+                                  {unsavedChanges.has(evaluation.team_id) && (
+                                    <span className="w-2 h-2 bg-orange-500 rounded-full" title="Unsaved changes"></span>
+                                  )}
+                                </h3>
+                                <div className="flex items-center gap-2">
+                                  <p className="text-sm text-muted-foreground">
+                                    Leader: {evaluation.leader_name}
+                                  </p>
+                                  {(() => {
+                                    const team = teams?.find(t => t.team_id === evaluation.team_id);
+                                    if (team?.status === 'ELIMINATED') {
+                                      return <Badge variant="destructive" className="text-xs">ELIMINATED</Badge>;
+                                    } else if (team?.status === 'ACTIVE') {
+                                      return <Badge variant="default" className="text-xs bg-green-100 text-green-800">ACTIVE</Badge>;
+                                    }
+                                    return null;
+                                  })()}
+                                </div>
+                              </div>
+                              <div className="text-right">
+                                <div className="text-2xl font-bold text-green-600">
+                                  {evaluation.normalized_score.toFixed(1)}
+                                </div>
+                                <div className="text-sm text-muted-foreground">
+                                  Normalized Score
+                                </div>
+                                <div className="text-xs text-muted-foreground">
+                                  Raw: {evaluation.total_score.toFixed(1)}
+                                </div>
+                              </div>
+                            </div>
+                            
+                            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                              {criteria.map((criterion, index) => (
+                                <div key={index} className="space-y-2">
+                                  <Label htmlFor={`${evaluation.team_id}-${criterion.name}`}>
+                                    {criterion.name} (Max: {criterion.max_points})
+                                  </Label>
+                                  <Input
+                                    id={`${evaluation.team_id}-${criterion.name}`}
+                                    type="number"
+                                    min="0"
+                                    max={criterion.max_points}
+                                    value={evaluation.criteria_scores[criterion.name] || 0}
+                                    onChange={(e) => updateTeamEvaluation(
+                                      evaluation.team_id, 
+                                      criterion.name, 
+                                      parseFloat(e.target.value) || 0
+                                    )}
+                                    disabled={false}
+                                    className={
+                                      (evaluation.criteria_scores[criterion.name] || 0) > criterion.max_points
+                                        ? "border-red-500 bg-red-50"
+                                        : ""
+                                    }
+                                  />
+                                  {(evaluation.criteria_scores[criterion.name] || 0) > criterion.max_points && (
+                                    <p className="text-xs text-red-500 mt-1">
+                                      Score exceeds maximum of {criterion.max_points} points
+                                    </p>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                            
+                            <div className="flex justify-end">
+                    <Button
+                                onClick={() => saveTeamEvaluation(evaluation.team_id)}
+                                disabled={evaluateTeamMutation.isPending}
+                                size="sm"
+                                className={
+                                  Object.entries(evaluation.criteria_scores).some(([criterionName, score]) => {
+                                    const criterion = criteria.find(c => c.name === criterionName);
+                                    return score > (criterion?.max_points || 100);
+                                  })
+                                    ? "bg-red-600 hover:bg-red-700"
+                                    : unsavedChanges.has(evaluation.team_id)
+                                      ? "bg-blue-600 hover:bg-blue-700"
+                                      : "bg-green-600 hover:bg-green-700"
+                                }
+                              >
+                                <Save className="h-4 w-4 mr-2" />
+                                Save Changes
+                    </Button>
+                </div>
+              </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Yet to Evaluate List */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-yellow-600" />
+              Yet to Evaluate ({nonEvaluatedTeams.length})
+            </CardTitle>
+            <CardDescription>
+              Teams that haven't been evaluated yet
+            </CardDescription>
+            </CardHeader>
+            <CardContent>
+            {nonEvaluatedTeams.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">
+                <CheckCircle className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                <p>All teams have been evaluated!</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                {nonEvaluatedTeams.map((evaluation) => (
+                  <Card key={evaluation.team_id} className="border-yellow-200 bg-yellow-50">
+                      <CardContent className="p-4">
+                        <div className="space-y-4">
+                          <div className="flex items-center justify-between">
+                            <div>
+                            <h3 className="font-semibold flex items-center gap-2">
+                              {evaluation.team_name}
+                              {unsavedChanges.has(evaluation.team_id) && (
+                                <span className="w-2 h-2 bg-orange-500 rounded-full" title="Unsaved changes"></span>
+                              )}
+                            </h3>
+                            <div className="flex items-center gap-2">
+                              <p className="text-sm text-muted-foreground">
+                                Leader: {evaluation.leader_name}
+                              </p>
+                              {(() => {
+                                const team = teams?.find(t => t.team_id === evaluation.team_id);
+                                if (team?.status === 'ELIMINATED') {
+                                  return <Badge variant="destructive" className="text-xs">ELIMINATED</Badge>;
+                                } else if (team?.status === 'ACTIVE') {
+                                  return <Badge variant="default" className="text-xs bg-green-100 text-green-800">ACTIVE</Badge>;
+                                }
+                                return null;
+                              })()}
+                            </div>
+                            </div>
+                            <div className="text-right">
+                            <div className="text-2xl font-bold text-yellow-600">
+                                {evaluation.normalized_score.toFixed(1)}
+                              </div>
+                              <div className="text-sm text-muted-foreground">
+                                Normalized Score
+                              </div>
+                            <div className="text-xs text-muted-foreground">
+                              Raw: {evaluation.total_score.toFixed(1)}
+                            </div>
+                            </div>
+                          </div>
+                          
+                          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                            {criteria.map((criterion, index) => (
+                              <div key={index} className="space-y-2">
+                                <Label htmlFor={`${evaluation.team_id}-${criterion.name}`}>
+                                  {criterion.name} (Max: {criterion.max_points})
+                                </Label>
+                                <Input
+                                  id={`${evaluation.team_id}-${criterion.name}`}
+                                  type="number"
+                                  min="0"
+                                  max={criterion.max_points}
+                                  value={evaluation.criteria_scores[criterion.name] || 0}
+                                  onChange={(e) => updateTeamEvaluation(
+                                    evaluation.team_id, 
+                                    criterion.name, 
+                                    parseFloat(e.target.value) || 0
+                                  )}
+                                disabled={false}
+                                className={
+                                  (evaluation.criteria_scores[criterion.name] || 0) > criterion.max_points
+                                    ? "border-red-500 bg-red-50"
+                                    : ""
+                                }
+                              />
+                              {(evaluation.criteria_scores[criterion.name] || 0) > criterion.max_points && (
+                                <p className="text-xs text-red-500 mt-1">
+                                  Score exceeds maximum of {criterion.max_points} points
+                                </p>
+                              )}
+                              </div>
+                            ))}
+                          </div>
+                          
+                          {!stats?.is_frozen && (
+                            <div className="flex justify-end">
+                              <Button
+                                onClick={() => saveTeamEvaluation(evaluation.team_id)}
+                                disabled={evaluateTeamMutation.isPending}
+                              className={
+                                Object.entries(evaluation.criteria_scores).some(([criterionName, score]) => {
+                                  const criterion = criteria.find(c => c.name === criterionName);
+                                  return score > (criterion?.max_points || 100);
+                                })
+                                  ? "bg-red-600 hover:bg-red-700"
+                                  : unsavedChanges.has(evaluation.team_id)
+                                    ? "bg-blue-600 hover:bg-blue-700"
+                                    : "bg-green-600 hover:bg-green-700"
+                              }
+                              >
+                                <Save className="h-4 w-4 mr-2" />
+                              {evaluation.is_evaluated ? "Save Changes" : "Evaluate Team"}
+                              </Button>
+                            </div>
+                          )}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+          </>
+        )}
+
+        {/* Criteria Management Modal */}
+        <Dialog open={isCriteriaModalOpen} onOpenChange={setIsCriteriaModalOpen}>
+          <DialogContent className="max-w-2xl">
+            <DialogHeader>
+              <DialogTitle>Manage Evaluation Criteria</DialogTitle>
+              <DialogDescription>
+                Define the criteria and maximum points for team evaluation
+              </DialogDescription>
+            </DialogHeader>
+            
+            <div className="space-y-4">
+              {criteria.map((criterion, index) => (
+                <div key={index} className="flex gap-2 items-end">
+                  <div className="flex-1 space-y-2">
+                    <Label htmlFor={`criteria-name-${index}`}>Criteria Name</Label>
+                    <Input
+                      id={`criteria-name-${index}`}
+                      value={criterion.name}
+                      onChange={(e) => updateCriterion(index, 'name', e.target.value)}
+                      placeholder="e.g., Technical Skills"
+                    />
+                  </div>
+                  <div className="w-24 space-y-2">
+                    <Label htmlFor={`criteria-points-${index}`}>Max Points</Label>
+                    <Input
+                      id={`criteria-points-${index}`}
+                      type="number"
+                      min="1"
+                      value={criterion.max_points}
+                      onChange={(e) => updateCriterion(index, 'max_points', parseInt(e.target.value) || 1)}
+                    />
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={() => removeCriterion(index)}
+                    disabled={criteria.length === 1}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+              ))}
+              
+              <Button variant="outline" onClick={addCriterion}>
+                <Plus className="h-4 w-4 mr-2" />
+                Add Criterion
+              </Button>
+            </div>
+            
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setIsCriteriaModalOpen(false)}>
+                Cancel
+              </Button>
+              <Button onClick={saveCriteria} disabled={updateCriteriaMutation.isPending}>
+                Save Criteria
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Freeze Round Dialog */}
+        <AlertDialog open={isFreezeDialogOpen} onOpenChange={setIsFreezeDialogOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Freeze Round Evaluations</AlertDialogTitle>
+              <AlertDialogDescription>
+                Are you sure? Evaluation will be submitted to PDA for review. You can't evaluate further.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction onClick={handleFreezeRound}>
+                Freeze Round
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        {/* Shortlist Teams Modal */}
+        <Dialog open={isShortlistModalOpen} onOpenChange={setIsShortlistModalOpen}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Trophy className="h-5 w-5" />
+                Shortlist Teams
+              </DialogTitle>
+              <DialogDescription>
+                Choose how to shortlist teams for the next round
+              </DialogDescription>
+            </DialogHeader>
+            
+            <div className="space-y-4">
+              <div>
+                <Label htmlFor="shortlist-type">Shortlist Method</Label>
+                <Select value={shortlistType} onValueChange={(value: 'top_k' | 'threshold') => setShortlistType(value)}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select shortlist method" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="top_k">Top K Teams</SelectItem>
+                    <SelectItem value="threshold">Score Threshold</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              {shortlistType === 'top_k' && (
+                <div>
+                  <Label htmlFor="top-k">Number of Teams</Label>
+                <Input
+                    id="top-k"
+                  type="number"
+                  min="1"
+                    max={teamEvaluations.length}
+                    value={shortlistValue}
+                    onChange={(e) => {
+                      const inputValue = e.target.value;
+                      // Allow empty input for editing
+                      if (inputValue === '') {
+                        setShortlistValue(0);
+                      } else {
+                        const value = parseInt(inputValue);
+                        if (!isNaN(value) && value > 0) {
+                          setShortlistValue(value);
+                        }
+                      }
+                    }}
+                    onBlur={(e) => {
+                      // Ensure we have a valid value when focus is lost
+                      const value = parseInt(e.target.value);
+                      if (isNaN(value) || value <= 0) {
+                        setShortlistValue(5); // Reset to default
+                      }
+                    }}
+                  />
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Select the top {shortlistValue} teams
+                  </p>
+              </div>
+              )}
+
+              {shortlistType === 'threshold' && (
+                <div>
+                  <Label htmlFor="threshold">Score Threshold</Label>
+                  <Input
+                    id="threshold"
+                    type="number"
+                    min="0"
+                    max="100"
+                    step="0.1"
+                    value={shortlistValue}
+                    onChange={(e) => {
+                      const inputValue = e.target.value;
+                      // Allow empty input for editing
+                      if (inputValue === '') {
+                        setShortlistValue(0);
+                      } else {
+                        const value = parseFloat(inputValue);
+                        if (!isNaN(value) && value >= 0) {
+                          setShortlistValue(value);
+                        }
+                      }
+                    }}
+                    onBlur={(e) => {
+                      // Ensure we have a valid value when focus is lost
+                      const value = parseFloat(e.target.value);
+                      if (isNaN(value) || value < 0) {
+                        setShortlistValue(50); // Reset to default
+                      }
+                    }}
+                  />
+                  <p className="text-sm text-muted-foreground mt-1">
+                    {getThresholdTeamCount()} teams have score ≥ {shortlistValue}
+                  </p>
+                </div>
+              )}
+            </div>
+            
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setIsShortlistModalOpen(false)}>
+                Cancel
+              </Button>
+              <Button onClick={handleApplyShortlist} className="bg-purple-600 hover:bg-purple-700">
+                <Filter className="h-4 w-4 mr-2" />
+                Apply Shortlist
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Shortlist Confirmation Dialog */}
+        <AlertDialog open={isShortlistConfirmOpen} onOpenChange={setIsShortlistConfirmOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Confirm Shortlist</AlertDialogTitle>
+              <AlertDialogDescription>
+                Are you sure? This will eliminate teams that don't meet the criteria. 
+                {shortlistType === 'top_k' 
+                  ? ` Top ${shortlistValue} teams will be shortlisted.`
+                  : ` Teams with score ≥ ${shortlistValue} will be shortlisted (${getThresholdTeamCount()} teams).`
+                }
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction onClick={handleConfirmShortlist} className="bg-purple-600 hover:bg-purple-700">
+                Apply Shortlist
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      </div>
+    </DashboardLayout>
+  );
+};
+
+export default RoundEvaluation;
