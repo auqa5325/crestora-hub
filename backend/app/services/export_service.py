@@ -149,24 +149,35 @@ class ExportService:
                     rounds_completed += 1
             
             if total_weight > 0:
-                # Calculate weighted average and normalize to 100
+                # Calculate weighted average
                 weighted_average = total_weighted_score / total_weight
-                final_score = min(weighted_average, 100.0)  # Cap at 100
                 
                 leaderboard.append({
                     "rank": 0,  # Will be set after sorting
                     "team_id": team.team_id,
                     "team_name": team.team_name,
                     "leader_name": team.leader_name,
-                    "final_score": round(final_score, 2),
                     "weighted_average": round(weighted_average, 2),
                     "rounds_completed": rounds_completed,
                     "current_round": team.current_round,
                     "status": team.status
                 })
         
-        # Sort by final score (descending)
-        leaderboard.sort(key=lambda x: x["final_score"], reverse=True)
+        # Add normalization and sort by weighted average
+        if leaderboard:
+            # Find the maximum weighted average
+            max_score = max(team["weighted_average"] for team in leaderboard)
+            
+            # Add normalized score
+            for team in leaderboard:
+                if max_score > 0:
+                    normalized_score = (team["weighted_average"] / max_score) * 100
+                    team["normalized_score"] = round(normalized_score, 2)
+                else:
+                    team["normalized_score"] = 0.0
+        
+        # Sort by weighted average (descending)
+        leaderboard.sort(key=lambda x: x["weighted_average"], reverse=True)
         
         # Add rank
         for i, team in enumerate(leaderboard):
@@ -179,7 +190,7 @@ class ExportService:
         # Write header
         writer.writerow([
             "Rank", "Team ID", "Team Name", "Leader Name", 
-            "Final Score", "Weighted Average", "Rounds Completed", 
+            "Weighted Average", "Normalized Score", "Rounds Completed", 
             "Current Round", "Status"
         ])
         
@@ -190,8 +201,8 @@ class ExportService:
                 team["team_id"],
                 team["team_name"],
                 team["leader_name"],
-                team["final_score"],
                 team["weighted_average"],
+                team["normalized_score"],
                 team["rounds_completed"],
                 team["current_round"],
                 team["status"]

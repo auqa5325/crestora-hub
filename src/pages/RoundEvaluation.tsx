@@ -765,7 +765,7 @@ const RoundEvaluation = () => {
                 All Teams - Sorted by Score ({teamEvaluations.length})
             </CardTitle>
             <CardDescription>
-                All teams sorted by normalized score (highest to lowest)
+                All teams sorted by final score (highest to lowest)
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -843,10 +843,10 @@ const RoundEvaluation = () => {
                                 {teamData.normalized_score.toFixed(1)}
                               </div>
                               <div className="text-xs sm:text-sm text-muted-foreground">
-                                Normalized Score
+                                Final Score (0-100)
                               </div>
                               <div className="text-xs text-muted-foreground">
-                                Raw: {teamData.total_score.toFixed(1)}
+                                Raw Points: {teamData.total_score.toFixed(1)}
                               </div>
                             </div>
                           </div>
@@ -1050,10 +1050,10 @@ const RoundEvaluation = () => {
                                 {evaluation.normalized_score.toFixed(1)}
                               </div>
                                 <div className="text-xs sm:text-sm text-muted-foreground">
-                                Normalized Score
+                                Final Score (0-100)
                                 </div>
                                 <div className="text-xs text-muted-foreground">
-                                  Raw: {evaluation.total_score.toFixed(1)}
+                                  Raw Points: {evaluation.total_score.toFixed(1)}
                                 </div>
                               </div>
                             </div>

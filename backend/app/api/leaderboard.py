@@ -167,24 +167,25 @@ async def get_leaderboard(db: Session = Depends(get_db)):
                 "team_id": team.team_id,
                 "team_name": team.team_name,
                 "leader_name": team.leader_name,
-                "final_score": round(final_score, 2),
                 "weighted_average": round(weighted_average, 2),
                 "rounds_completed": rounds_completed,
                 "current_round": team.current_round,
                 "status": team.status
             })
     
-    # Normalize all scores to 100
+    # Normalize all scores to 100 and add both scores
     if leaderboard:
         # Find the maximum weighted average
         max_score = max(team["weighted_average"] for team in leaderboard)
         
-        # Normalize all scores to 100
+        # Add both weighted average and normalized score
         for team in leaderboard:
             if max_score > 0:
                 normalized_score = (team["weighted_average"] / max_score) * 100
-                team["final_score"] = round(normalized_score, 2)
+                team["normalized_score"] = round(normalized_score, 2)
+                team["final_score"] = round(normalized_score, 2)  # Keep final_score for backward compatibility
             else:
+                team["normalized_score"] = 0.0
                 team["final_score"] = 0.0
     
     # Sort by final score (descending)
@@ -370,17 +371,10 @@ async def shortlist_teams_by_overall_score(
             # Calculate weighted average
             weighted_average = total_weighted_score / total_weight
             
-            # Normalize to 100 (same logic as leaderboard)
-            max_possible_score = max(team_scores_dict.values()) if team_scores_dict else 100.0
-            if max_possible_score > 0:
-                normalized_score = (weighted_average / max_possible_score) * 100
-            else:
-                normalized_score = 0.0
-            
             all_teams_with_scores.append({
                 'team_id': team.team_id,
                 'team_name': team.team_name,
-                'overall_score': normalized_score
+                'overall_score': weighted_average  # Use weighted average for shortlisting
             })
     
     # Sort by overall score (descending)
@@ -403,8 +397,8 @@ async def shortlist_teams_by_overall_score(
     elif shortlist_type == "threshold":
         # Shortlist teams with overall score >= threshold
         threshold = float(value)
-        if threshold < 0 or threshold > 100:
-            raise HTTPException(status_code=400, detail=f"Invalid threshold value: {threshold}. Must be between 0 and 100")
+        if threshold < 0:
+            raise HTTPException(status_code=400, detail=f"Invalid threshold value: {threshold}. Must be >= 0")
         for team_data in all_teams_with_scores:
             if team_data['overall_score'] >= threshold:
                 shortlisted_teams.append(team_data)

@@ -704,13 +704,13 @@ const Leaderboard = () => {
                   </div>
                   <div className="text-left sm:text-right flex-shrink-0">
                     <div className="text-2xl font-bold text-primary">
-                      {team.final_score}
+                      {team.weighted_average}
                     </div>
                     <div className="text-sm text-muted-foreground">
-                      Final Score
+                      Weighted Average
                     </div>
                     <div className="text-xs text-muted-foreground">
-                      Weighted Avg: {team.weighted_average}
+                      Normalized: {team.normalized_score || team.final_score}
                     </div>
                     <div className="text-xs text-muted-foreground">
                       Rounds: {team.rounds_completed}

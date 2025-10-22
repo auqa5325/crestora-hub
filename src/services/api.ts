@@ -150,6 +150,7 @@ export interface LeaderboardTeam {
   leader_name: string;
   final_score: number;
   weighted_average: number;
+  normalized_score: number;
   rounds_completed: number;
   current_round: number;
   status: string;
