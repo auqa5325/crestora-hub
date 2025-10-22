@@ -480,6 +480,89 @@ const Leaderboard = () => {
           </div>
         </div>
 
+        {/* Statistics */}
+        <div className="grid gap-4 md:grid-cols-5">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Total Teams</CardTitle>
+              <Users className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{leaderboard.length}</div>
+              <p className="text-xs text-muted-foreground">
+                All teams
+              </p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Active Teams</CardTitle>
+              <Users className="h-4 w-4 text-green-600" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-green-600">{getActiveTeamsCount()}</div>
+              <p className="text-xs text-muted-foreground">
+                Available for shortlisting
+              </p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Highest Score</CardTitle>
+              <Star className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-green-600">
+                {leaderboard.length > 0 ? Math.max(...leaderboard.map(t => t.final_score)) : 0}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Highest score
+              </p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Average Score</CardTitle>
+              <TrendingUp className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">
+                {(() => {
+                  if (leaderboard.length === 0) return 0;
+                  
+                  // Get all non-zero scores
+                  const nonZeroScores = leaderboard
+                    .map(team => team.final_score)
+                    .filter(score => score > 0);
+                  
+                  if (nonZeroScores.length === 0) return 0;
+                  
+                  // Calculate average of non-zero scores
+                  const average = nonZeroScores.reduce((sum, score) => sum + score, 0) / nonZeroScores.length;
+                  return Math.round(average);
+                })()}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Average of non-zero scores
+              </p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Eliminated Teams</CardTitle>
+              <Trophy className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-red-600">
+                {leaderboard.filter(t => t.status === 'ELIMINATED').length}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Teams eliminated
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+
         {/* Top 3 Podium */}
         <div className="grid gap-4 md:grid-cols-3">
           {leaderboard.slice(0, 3).map((team, index) => (
@@ -725,88 +808,6 @@ const Leaderboard = () => {
           </CardContent>
         </Card>
 
-        {/* Statistics */}
-        <div className="grid gap-4 md:grid-cols-5">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Teams</CardTitle>
-              <Users className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{leaderboard.length}</div>
-              <p className="text-xs text-muted-foreground">
-                All teams
-              </p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Active Teams</CardTitle>
-              <Users className="h-4 w-4 text-green-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-green-600">{getActiveTeamsCount()}</div>
-              <p className="text-xs text-muted-foreground">
-                Available for shortlisting
-              </p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Highest Score</CardTitle>
-              <Star className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-green-600">
-                {leaderboard.length > 0 ? Math.max(...leaderboard.map(t => t.final_score)) : 0}
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Highest score
-              </p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Average Score</CardTitle>
-              <TrendingUp className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">
-                {(() => {
-                  if (leaderboard.length === 0) return 0;
-                  
-                  // Get all non-zero scores
-                  const nonZeroScores = leaderboard
-                    .map(team => team.final_score)
-                    .filter(score => score > 0);
-                  
-                  if (nonZeroScores.length === 0) return 0;
-                  
-                  // Calculate average of non-zero scores
-                  const average = nonZeroScores.reduce((sum, score) => sum + score, 0) / nonZeroScores.length;
-                  return Math.round(average);
-                })()}
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Average of non-zero scores
-              </p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Eliminated Teams</CardTitle>
-              <Trophy className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-red-600">
-                {leaderboard.filter(t => t.status === 'ELIMINATED').length}
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Teams eliminated
-              </p>
-            </CardContent>
-          </Card>
-        </div>
 
         {/* Shortlist Teams Modal */}
         <Dialog open={isShortlistModalOpen} onOpenChange={setIsShortlistModalOpen}>
