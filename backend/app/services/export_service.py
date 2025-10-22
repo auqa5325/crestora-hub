@@ -6,6 +6,7 @@ from app.models.team_score import TeamScore
 from app.models.team import Team
 from app.models.rounds import UnifiedEvent
 from app.models.round_weight import RoundWeight
+from app.models.rolling_results import RollingEventResult
 import csv
 import io
 
@@ -226,4 +227,82 @@ class ExportService:
             content=csv_content,
             media_type="text/csv",
             headers={"Content-Disposition": "attachment; filename=leaderboard.csv"}
+        )
+
+    def export_rolling_results(self, is_frozen: bool = None, is_evaluated: bool = None) -> Response:
+        """Export rolling event results to CSV"""
+        
+        # Build query
+        query = self.db.query(RollingEventResult)
+        
+        # Apply filters
+        if is_frozen is not None:
+            query = query.filter(RollingEventResult.is_frozen == is_frozen)
+        if is_evaluated is not None:
+            query = query.filter(RollingEventResult.is_evaluated == is_evaluated)
+        
+        # Get results
+        results = query.all()
+        
+        # Create CSV content
+        output = io.StringIO()
+        writer = csv.writer(output)
+        
+        # Write header
+        header = [
+            "Event ID", "Event Name", "Club", "Winner Name", "Winner Register Number",
+            "Winner Email", "Winner Phone", "Winner Department", "Winner Year",
+            "Runner-up Name", "Runner-up Register Number", "Runner-up Email", 
+            "Runner-up Phone", "Runner-up Department", "Runner-up Year",
+            "Is Frozen", "Is Evaluated", "Created At", "Updated At"
+        ]
+        writer.writerow(header)
+        
+        # Write data
+        for result in results:
+            # Get event name
+            event = self.db.query(UnifiedEvent).filter(
+                UnifiedEvent.event_id == result.event_id,
+                UnifiedEvent.round_number == 0
+            ).first()
+            
+            row = [
+                result.event_id,
+                event.name if event else result.event_id,
+                result.club,
+                result.winner_name,
+                result.winner_register_number,
+                result.winner_email,
+                result.winner_phone,
+                result.winner_department,
+                result.winner_year,
+                result.runner_up_name,
+                result.runner_up_register_number,
+                result.runner_up_email,
+                result.runner_up_phone,
+                result.runner_up_department,
+                result.runner_up_year,
+                result.is_frozen,
+                result.is_evaluated,
+                result.created_at,
+                result.updated_at
+            ]
+            writer.writerow(row)
+        
+        # Get CSV content
+        csv_content = output.getvalue()
+        output.close()
+        
+        # Determine filename based on filters
+        filename = "rolling_events_results.csv"
+        if is_frozen is not None and is_frozen:
+            filename = "frozen_rolling_events_results.csv"
+        elif is_evaluated is not None and is_evaluated:
+            filename = "evaluated_rolling_events_results.csv"
+        
+        # Return CSV file
+        return Response(
+            content=csv_content,
+            media_type="text/csv",
+            headers={"Content-Disposition": f"attachment; filename={filename}"}
         )

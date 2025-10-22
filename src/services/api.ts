@@ -1,5 +1,5 @@
 const API_BASE_URL =
-  import.meta.env.VITE_API_BASE_URL || "http://3.110.143.60:8000/api";
+  import.meta.env.VITE_API_BASE_URL || "http://localhost:8000/api";
 console.log("API_BASE_URL", API_BASE_URL);
 export { API_BASE_URL };
 export interface Team {
@@ -168,6 +168,88 @@ export interface EvaluatedRound {
   weight_percentage: number;
   is_frozen?: boolean;
   is_evaluated?: boolean;
+}
+
+export interface RollingEventResult {
+  id: number;
+  event_id: string;
+  
+  // Winner details
+  winner_name: string;
+  winner_register_number: string;
+  winner_email: string;
+  winner_phone: string;
+  winner_department: string;
+  winner_year: string;
+  
+  // Runner-up details
+  runner_up_name: string;
+  runner_up_register_number: string;
+  runner_up_email: string;
+  runner_up_phone: string;
+  runner_up_department: string;
+  runner_up_year: string;
+  
+  club: string;
+  is_frozen: boolean;
+  is_evaluated: boolean;
+  created_at: string;
+  updated_at?: string;
+  event_name?: string;
+  event_date?: string;
+}
+
+export interface RollingEventResultCreate {
+  event_id: string;
+  
+  // Winner details
+  winner_name: string;
+  winner_register_number: string;
+  winner_email: string;
+  winner_phone: string;
+  winner_department: string;
+  winner_year: string;
+  
+  // Runner-up details
+  runner_up_name: string;
+  runner_up_register_number: string;
+  runner_up_email: string;
+  runner_up_phone: string;
+  runner_up_department: string;
+  runner_up_year: string;
+  
+  club: string;
+  is_frozen?: boolean;
+  is_evaluated?: boolean;
+}
+
+export interface RollingEventResultUpdate {
+  // Winner details
+  winner_name?: string;
+  winner_register_number?: string;
+  winner_email?: string;
+  winner_phone?: string;
+  winner_department?: string;
+  winner_year?: string;
+  
+  // Runner-up details
+  runner_up_name?: string;
+  runner_up_register_number?: string;
+  runner_up_email?: string;
+  runner_up_phone?: string;
+  runner_up_department?: string;
+  runner_up_year?: string;
+  
+  is_frozen?: boolean;
+  is_evaluated?: boolean;
+}
+
+export interface AvailableRollingEvent {
+  event_id: string;
+  name: string;
+  club: string;
+  start_date?: string;
+  venue?: string;
 }
 
 
@@ -546,6 +628,86 @@ class ApiService {
       }),
     });
   }
+
+  // Rolling Event Results API
+  async getRollingResults(params?: {
+    skip?: number;
+    limit?: number;
+    club?: string;
+    is_frozen?: boolean;
+    is_evaluated?: boolean;
+  }): Promise<RollingEventResult[]> {
+    const searchParams = new URLSearchParams();
+    if (params?.skip) searchParams.append('skip', params.skip.toString());
+    if (params?.limit) searchParams.append('limit', params.limit.toString());
+    if (params?.club) searchParams.append('club', params.club);
+    if (params?.is_frozen !== undefined) searchParams.append('is_frozen', params.is_frozen.toString());
+    if (params?.is_evaluated !== undefined) searchParams.append('is_evaluated', params.is_evaluated.toString());
+
+    const queryString = searchParams.toString();
+    return this.request<RollingEventResult[]>(`/rolling-results/${queryString ? `?${queryString}` : ''}`);
+  }
+
+  async getRollingResultByEvent(eventId: string): Promise<RollingEventResult> {
+    return this.request<RollingEventResult>(`/rolling-results/${eventId}`);
+  }
+
+  async createRollingResult(resultData: RollingEventResultCreate): Promise<RollingEventResult> {
+    return this.request<RollingEventResult>('/rolling-results/', {
+      method: 'POST',
+      body: JSON.stringify(resultData),
+    });
+  }
+
+  async updateRollingResult(eventId: string, resultUpdate: RollingEventResultUpdate): Promise<RollingEventResult> {
+    return this.request<RollingEventResult>(`/rolling-results/${eventId}`, {
+      method: 'PUT',
+      body: JSON.stringify(resultUpdate),
+    });
+  }
+
+  async freezeRollingResult(eventId: string): Promise<{message: string}> {
+    return this.request<{message: string}>(`/rolling-results/${eventId}/freeze`, {
+      method: 'POST',
+    });
+  }
+
+  async evaluateRollingResult(eventId: string): Promise<{message: string}> {
+    return this.request<{message: string}>(`/rolling-results/${eventId}/evaluate`, {
+      method: 'POST',
+    });
+  }
+
+  async getAvailableRollingEvents(): Promise<AvailableRollingEvent[]> {
+    return this.request<AvailableRollingEvent[]>('/rolling-results/events/available');
+  }
+
+  async exportRollingResults(): Promise<Blob> {
+    const token = localStorage.getItem('auth_token');
+    const response = await fetch(`${API_BASE_URL}/rolling-results/export`, {
+      headers: {
+        ...(token && { 'Authorization': `Bearer ${token}` }),
+      },
+    });
+    if (!response.ok) {
+      throw new Error(`Export failed: ${response.status} ${response.statusText}`);
+    }
+    return response.blob();
+  }
+
+  async exportEvaluatedRollingResults(): Promise<Blob> {
+    const token = localStorage.getItem('auth_token');
+    const response = await fetch(`${API_BASE_URL}/rolling-results/export?is_evaluated=true`, {
+      headers: {
+        ...(token && { 'Authorization': `Bearer ${token}` }),
+      },
+    });
+    if (!response.ok) {
+      throw new Error(`Export failed: ${response.status} ${response.statusText}`);
+    }
+    return response.blob();
+  }
+
 }
 
 export const apiService = new ApiService();

@@ -9,6 +9,7 @@ import Index from "./pages/Index";
 import Login from "./pages/Login";
 // import Dashboard from "./pages/Dashboard"; // Temporarily hidden
 import Events from "./pages/Events";
+import RollingEventsResults from "./pages/RollingEventsResults";
 import RoundsDashboard from "./pages/RoundsDashboard";
 import RoundEvaluation from "./pages/RoundEvaluation";
 import Teams from "./pages/Teams";
@@ -51,6 +52,14 @@ const App = () => (
               element={
                 <ProtectedRoute requiredRoles={['admin', 'clubs']}>
                   <Events />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/rolling-results" 
+              element={
+                <ProtectedRoute requiredRoles={['admin', 'clubs']}>
+                  <RollingEventsResults />
                 </ProtectedRoute>
               } 
             />

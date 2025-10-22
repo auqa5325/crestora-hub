@@ -4,7 +4,7 @@ from fastapi.responses import JSONResponse
 import uvicorn
 
 # Import API routers
-from app.api import teams_simple, events, dashboard, teams, team_scores, leaderboard, rounds, auth
+from app.api import teams_simple, events, dashboard, teams, team_scores, leaderboard, rounds, auth, rolling_results
 
 app = FastAPI(
     title="Crestora'25 API",
@@ -58,6 +58,7 @@ app.include_router(teams.router)
 app.include_router(team_scores.router)
 app.include_router(leaderboard.router)
 app.include_router(rounds.router)
+app.include_router(rolling_results.router)
 
 if __name__ == "__main__":
     uvicorn.run(

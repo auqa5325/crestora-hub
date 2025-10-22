@@ -21,10 +21,13 @@ import {
   Filter,
   RefreshCw,
   Mail,
-  Send
+  Send,
+  ChevronLeft,
+  ChevronRight,
+  Building2
 } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { apiService, Team, LeaderboardData, LeaderboardTeam, RoundWeight, EvaluatedRound } from "@/services/api";
+import { apiService, Team, LeaderboardData, LeaderboardTeam, RoundWeight, EvaluatedRound, RollingEventResult } from "@/services/api";
 import { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
@@ -46,6 +49,10 @@ const Leaderboard = () => {
   const [isEmailModalOpen, setIsEmailModalOpen] = useState(false);
   const [emailRecipients, setEmailRecipients] = useState<string>('');
   const [eventName, setEventName] = useState<string>("Crestora'25");
+
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
 
   const { data: teams, isLoading: teamsLoading } = useQuery<Team[]>({
     queryKey: ['teams'],
@@ -96,6 +103,15 @@ const Leaderboard = () => {
     refetchOnWindowFocus: false,
     refetchOnReconnect: false,
     staleTime: 10 * 1000, // 10 seconds - shorter for weight changes
+  });
+
+  // Fetch rolling event results
+  const { data: rollingResults, isLoading: rollingResultsLoading } = useQuery<RollingEventResult[]>({
+    queryKey: ['rolling-results'],
+    queryFn: () => apiService.getRollingResults({ is_evaluated: true }),
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+    staleTime: 30 * 1000, // 30 seconds
   });
 
   // Update weight mutation - optimized for batch updates
@@ -304,6 +320,17 @@ const Leaderboard = () => {
   // Use real leaderboard data
   const leaderboard = leaderboardData?.teams || [];
 
+  // Pagination calculations
+  const totalPages = Math.ceil(leaderboard.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const paginatedLeaderboard = leaderboard.slice(startIndex, endIndex);
+
+  // Reset to first page when leaderboard data changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [leaderboard.length]);
+
   const getRankIcon = (rank: number) => {
     switch (rank) {
       case 1:
@@ -372,6 +399,31 @@ const Leaderboard = () => {
       toast({
         title: "Export failed",
         description: "Failed to export leaderboard. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Export rolling events results
+  const exportRollingEventsResults = async () => {
+    try {
+      const blob = await apiService.exportEvaluatedRollingResults();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'rolling_events_results.csv';
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      toast({
+        title: "Export successful",
+        description: "Rolling events results exported successfully!",
+      });
+    } catch (error) {
+      toast({
+        title: "Export failed",
+        description: "Failed to export rolling events results. Please try again.",
         variant: "destructive",
       });
     }
@@ -759,9 +811,14 @@ const Leaderboard = () => {
         {/* Full Leaderboard */}
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Trophy className="h-5 w-5" />
-              Full Leaderboard
+            <CardTitle className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Trophy className="h-5 w-5" />
+                Full Leaderboard
+              </div>
+              <div className="text-sm text-muted-foreground">
+                Showing {startIndex + 1}-{Math.min(endIndex, leaderboard.length)} of {leaderboard.length} teams
+              </div>
             </CardTitle>
             <CardDescription>
               Complete rankings of all teams (weighted average scores)
@@ -769,7 +826,7 @@ const Leaderboard = () => {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {leaderboard.map((team) => (
+              {paginatedLeaderboard.map((team) => (
                 <div key={team.team_id} className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-4 border rounded-lg hover:bg-gray-50 transition-colors gap-3">
                   <div className="flex items-center gap-4">
                     <div className="flex items-center justify-center w-8 flex-shrink-0">
@@ -805,6 +862,35 @@ const Leaderboard = () => {
                 </div>
               ))}
             </div>
+            
+            {/* Pagination Controls */}
+            {totalPages > 1 && (
+              <div className="flex items-center justify-between mt-6 pt-4 border-t">
+                <div className="text-sm text-muted-foreground">
+                  Page {currentPage} of {totalPages}
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                    disabled={currentPage === 1}
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                    Previous
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                    disabled={currentPage === totalPages}
+                  >
+                    Next
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -1010,6 +1096,85 @@ const Leaderboard = () => {
             </div>
           </DialogContent>
         </Dialog>
+
+        {/* Rolling Events Results Section */}
+        {rollingResults && rollingResults.length > 0 && (
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="flex items-center gap-2">
+                    <Trophy className="h-5 w-5" />
+                    Rolling Events Results
+                  </CardTitle>
+                  <CardDescription>
+                    Winners and runners-up from completed rolling events
+                  </CardDescription>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={exportRollingEventsResults}
+                  className="flex items-center gap-2"
+                >
+                  <Download className="h-4 w-4" />
+                  <span className="hidden sm:inline">Export</span>
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                {rollingResults.map((result) => (
+                  <Card key={result.id} className="border-l-4 border-l-primary">
+                    <CardHeader className="pb-3">
+                      <div className="flex items-start justify-between">
+                        <div>
+                          <CardTitle className="text-lg">{result.event_name || result.event_id}</CardTitle>
+                          <CardDescription className="flex items-center gap-1 text-xs">
+                            <Building2 className="h-3 w-3" />
+                            {result.club}
+                          </CardDescription>
+                        </div>
+                        <Badge variant="secondary" className="text-xs">
+                          Evaluated
+                        </Badge>
+                      </div>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      {/* Winner */}
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <Crown className="h-4 w-4 text-yellow-500" />
+                          <span className="text-sm font-medium text-yellow-700">Winner</span>
+                        </div>
+                        <div className="pl-6">
+                          <p className="font-semibold text-sm">{result.winner_name}</p>
+                          <p className="text-xs text-muted-foreground">
+                            Reg: {result.winner_register_number}
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Runner-up */}
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <Medal className="h-4 w-4 text-gray-500" />
+                          <span className="text-sm font-medium text-gray-700">Runner-up</span>
+                        </div>
+                        <div className="pl-6">
+                          <p className="font-semibold text-sm">{result.runner_up_name}</p>
+                          <p className="text-xs text-muted-foreground">
+                            Reg: {result.runner_up_register_number}
+                          </p>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
       </div>
     </DashboardLayout>

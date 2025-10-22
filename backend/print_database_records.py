@@ -16,6 +16,7 @@ from app.models.team_score import TeamScore
 from app.models.evaluation import Evaluation
 from app.models.auth import User
 from app.models.rolling_member import RollingEventMember, RollingMemberStatus
+from app.models.rolling_results import RollingEventResult
 from app.models.round_weight import RoundWeight
 
 def get_db_session():
@@ -67,6 +68,7 @@ def print_database_records():
         print_table_records(session, "team_scores", TeamScore)
         print_table_records(session, "evaluations", Evaluation)
         print_table_records(session, "rolling_event_members", RollingEventMember)
+        print_table_records(session, "rolling_event_results", RollingEventResult)
         print_table_records(session, "round_weights", RoundWeight)
         
         print(f"\n{'='*80}")
