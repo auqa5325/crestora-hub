@@ -473,7 +473,7 @@ const Leaderboard = () => {
               <Download className="h-4 w-4 mr-2" />
               Download CSV
             </Button>
-            <Button className="gradient-hero" onClick={handleEmailExport} className="w-full sm:w-auto">
+            <Button className="gradient-hero w-full sm:w-auto" onClick={handleEmailExport}>
               <Mail className="h-4 w-4 mr-2" />
               Email CSV
             </Button>
