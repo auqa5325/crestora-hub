@@ -212,22 +212,11 @@ const Teams = () => {
       <div className="space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <img 
-              src="/logo.png" 
-              alt="Crestora Logo" 
-              className="h-10 w-10 sm:h-12 sm:w-12 object-contain flex-shrink-0"
-              onError={(e) => {
-                // Hide logo if file doesn't exist
-                e.currentTarget.style.display = 'none';
-              }}
-            />
-            <div>
-              <h1 className="text-2xl sm:text-3xl font-bold mb-2">Teams</h1>
-              <p className="text-muted-foreground text-sm sm:text-base">
-                Manage all {teamStats?.total_teams || 0} registered teams
-              </p>
-            </div>
+          <div>
+            <h1 className="text-3xl font-bold mb-2">Teams</h1>
+            <p className="text-muted-foreground">
+              Manage all {teamStats?.total_teams || 0} registered teams
+            </p>
           </div>
           <div className="flex gap-2">
             <Button className="gradient-hero">

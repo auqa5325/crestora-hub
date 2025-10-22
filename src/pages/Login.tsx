@@ -41,19 +41,19 @@ const Login = () => {
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary/10 via-background to-accent/10 p-4">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
-          <div className="flex items-center justify-center gap-3 mb-4">
+          <div className="flex items-center justify-center gap-4 mb-4">
             <img 
-              src="/logo.png" 
+              src="/logo2.png" 
               alt="Crestora Logo" 
-              className="h-12 w-12 sm:h-16 sm:w-16 object-contain"
+              className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 hover:bg-accent hover:text-accent-foreground h-10 w-10"
               onError={(e) => {
                 // Hide logo if file doesn't exist
                 e.currentTarget.style.display = 'none';
               }}
             />
-            <h1 className="text-3xl sm:text-4xl font-bold text-primary">Crestora'25</h1>
+            <h1 className="text-4xl font-bold text-primary">Crestora'25</h1>
           </div>
-          <p className="text-muted-foreground text-sm sm:text-base">Event Management System</p>
+          <p className="text-muted-foreground">Event Management System</p>
         </div>
 
         <Card className="shadow-lg">

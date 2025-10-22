@@ -6,7 +6,8 @@ import {
   DollarSign,
   Settings,
   LogOut,
-  Target
+  Target,
+  Menu
 } from "lucide-react";
 import { NavLink } from "react-router-dom";
 import {
@@ -18,6 +19,7 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarTrigger,
   useSidebar,
 } from "@/components/ui/sidebar";
 import { useAuth } from "@/contexts/AuthContext";
@@ -55,12 +57,23 @@ export function AppSidebar() {
     <Sidebar collapsible="icon" className="border-r">
       <SidebarContent>
         <div className="px-4 py-6">
-          {!isCollapsed && (
-            <div className="space-y-1">
-              <h2 className="text-lg font-bold text-sidebar-foreground">Crestora'25</h2>
-              <p className="text-xs text-sidebar-foreground/70">Event Management</p>
-            </div>
-          )}
+          <div className="flex items-center gap-3">
+            <img 
+              src="/logo1.png" 
+              alt="Crestora Logo" 
+              className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 hover:bg-accent hover:text-accent-foreground h-10 w-10"
+              onError={(e) => {
+                // Hide logo if file doesn't exist
+                e.currentTarget.style.display = 'none';
+              }}
+            />
+            {!isCollapsed && (
+              <div className="space-y-1">
+                <h2 className="text-lg font-bold text-sidebar-foreground">Crestora'25</h2>
+                <p className="text-xs text-sidebar-foreground/70">Event Management</p>
+              </div>
+            )}
+          </div>
         </div>
         
         <SidebarGroup>

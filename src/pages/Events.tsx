@@ -405,20 +405,9 @@ const Events = () => {
       <DashboardLayout>
         <div className="space-y-6">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <img 
-                src="/logo.png" 
-                alt="Crestora Logo" 
-                className="h-10 w-10 sm:h-12 sm:w-12 object-contain flex-shrink-0"
-                onError={(e) => {
-                  // Hide logo if file doesn't exist
-                  e.currentTarget.style.display = 'none';
-                }}
-              />
-              <div>
-                <h1 className="text-2xl sm:text-3xl font-bold mb-2">Events</h1>
-                <p className="text-muted-foreground text-sm sm:text-base">Loading events...</p>
-              </div>
+            <div>
+              <h1 className="text-3xl font-bold mb-2">Events</h1>
+              <p className="text-muted-foreground">Loading events...</p>
             </div>
           </div>
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
@@ -476,22 +465,11 @@ const Events = () => {
     <DashboardLayout>
       <div className="space-y-6">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <img 
-              src="/logo.png" 
-              alt="Crestora Logo" 
-              className="h-10 w-10 sm:h-12 sm:w-12 object-contain flex-shrink-0"
-              onError={(e) => {
-                // Hide logo if file doesn't exist
-                e.currentTarget.style.display = 'none';
-              }}
-            />
-            <div>
-              <h1 className="text-2xl sm:text-3xl font-bold mb-2">Events & Rounds</h1>
-              <p className="text-muted-foreground text-sm sm:text-base">
-                Manage all Crestora'25 events and their rounds
-              </p>
-            </div>
+          <div>
+            <h1 className="text-3xl font-bold mb-2">Events & Rounds</h1>
+            <p className="text-muted-foreground">
+              Manage all Crestora'25 events and their rounds
+            </p>
           </div>
           <div className="flex gap-2">
             <Button 
