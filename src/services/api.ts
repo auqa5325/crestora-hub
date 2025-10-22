@@ -433,6 +433,21 @@ class ApiService {
     return response.blob();
   }
 
+  async exportRoundDataViaEmail(roundId: number, toEmails: string[], eventName: string = "Crestora'25"): Promise<{
+    message: string;
+    recipients: string[];
+    round_name: string;
+    event_name: string;
+  }> {
+    return this.request(`/rounds/rounds/${roundId}/export-email`, {
+      method: 'POST',
+      body: JSON.stringify({
+        to_emails: toEmails,
+        event_name: eventName
+      }),
+    });
+  }
+
   // Team Scores API
   async getTeamScores(teamId: string): Promise<TeamScore[]> {
     return this.request<TeamScore[]>(`/team-scores/${teamId}`);
@@ -468,6 +483,20 @@ class ApiService {
       throw new Error(`Export failed: ${response.status} ${response.statusText}`);
     }
     return response.blob();
+  }
+
+  async exportLeaderboardViaEmail(toEmails: string[], eventName: string = "Crestora'25"): Promise<{
+    message: string;
+    recipients: string[];
+    event_name: string;
+  }> {
+    return this.request('/leaderboard/export-email', {
+      method: 'POST',
+      body: JSON.stringify({
+        to_emails: toEmails,
+        event_name: eventName
+      }),
+    });
   }
 
   // Enhanced Teams API
