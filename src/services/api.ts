@@ -1,6 +1,7 @@
-// API service for Crestora'25 backend
-const API_BASE_URL =  'http://localhost:8000/api';
-
+const API_BASE_URL =
+  import.meta.env.VITE_API_BASE_URL || "http://3.110.143.60:8000/api";
+console.log("API_BASE_URL", API_BASE_URL);
+export { API_BASE_URL };
 export interface Team {
   id: number;
   team_id: string;
