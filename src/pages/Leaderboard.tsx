@@ -496,10 +496,13 @@ const Leaderboard = () => {
               </CardHeader>
               <CardContent className="text-center space-y-2">
                 <div className="text-3xl font-bold text-primary">
-                  {team.final_score}
+                  {team.weighted_average}
                 </div>
                 <div className="text-sm text-muted-foreground">
-                  Final Score
+                  Weighted Average
+                </div>
+                <div className="text-xs text-muted-foreground">
+                  Normalized: {team.normalized_score || team.final_score}
                 </div>
                 <div className="flex justify-center">
                   <Badge variant="outline" className={getStatusColor(team.status)}>
