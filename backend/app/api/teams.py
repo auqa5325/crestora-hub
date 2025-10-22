@@ -4,6 +4,8 @@ from typing import List, Optional
 from app.database import get_db
 from app.models.team import Team, TeamMember, TeamStatus
 from app.models.team_score import TeamScore
+from app.models.rounds import UnifiedEvent
+from app.models.round_weight import RoundWeight
 from app.schemas.team import TeamInDB as TeamSchema, TeamCreate, TeamUpdate, TeamStats, TeamMemberInDB
 from app.schemas.team_score import TeamScoreInDB
 from app.auth import get_current_user, require_pda_role
@@ -22,6 +24,81 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
     """Verify a password"""
     return pwd_context.verify(plain_password, hashed_password)
 
+def calculate_overall_score(team_id: str, db: Session, weights_cache: dict = None) -> Optional[float]:
+    """Calculate overall score (weighted average) for a team based on evaluated rounds + current frozen round"""
+    # Get all evaluated rounds + current frozen round (if not yet evaluated)
+    evaluated_rounds = db.query(UnifiedEvent).filter(
+        UnifiedEvent.is_evaluated == True,
+        UnifiedEvent.round_number > 0
+    ).all()
+    
+    # Also include any frozen rounds that are not yet evaluated (current round)
+    frozen_rounds = db.query(UnifiedEvent).filter(
+        UnifiedEvent.is_frozen == True,
+        UnifiedEvent.is_evaluated == False,
+        UnifiedEvent.round_number > 0
+    ).all()
+    
+    # Combine both sets
+    all_rounds = evaluated_rounds + frozen_rounds
+    
+    if not all_rounds:
+        return None
+    
+    # Create a set of round IDs for faster lookup
+    round_ids = {round_obj.id for round_obj in all_rounds}
+    
+    # Get team scores for all relevant rounds
+    team_scores = db.query(TeamScore).filter(
+        TeamScore.team_id == team_id,
+        TeamScore.round_id.in_(round_ids)
+    ).all()
+    
+    # Create a dictionary of scores for easier lookup
+    team_scores_dict = {score.round_id: score.score for score in team_scores}
+    
+    # Calculate weighted average (including 0 scores for missing rounds)
+    total_weighted_score = 0.0
+    total_weight = 0.0
+    
+    for round_id in round_ids:
+        # Use cached weight if available, otherwise query database
+        if weights_cache and round_id in weights_cache:
+            weight_percentage = weights_cache[round_id]
+        else:
+            # Get weight for this round, create default if not exists
+            weight = db.query(RoundWeight).filter(
+                RoundWeight.round_id == round_id
+            ).first()
+            
+            if not weight:
+                # Create default weight of 100%
+                weight = RoundWeight(
+                    round_id=round_id,
+                    weight_percentage=100.0
+                )
+                db.add(weight)
+                # Don't commit here - let caller handle batch commit
+                weight_percentage = 100.0
+            else:
+                weight_percentage = weight.weight_percentage
+            
+            # Cache the weight for future use
+            if weights_cache is not None:
+                weights_cache[round_id] = weight_percentage
+        
+        # Get score for this round (0 if not found)
+        round_score = team_scores_dict.get(round_id, 0.0)
+        
+        weight_value = weight_percentage / 100.0  # Convert to decimal
+        total_weighted_score += round_score * weight_value
+        total_weight += weight_value
+    
+    if total_weight == 0:
+        return None
+    
+    return total_weighted_score / total_weight
+
 @router.get("/")
 async def get_teams(
     skip: int = Query(0, ge=0),
@@ -39,6 +116,48 @@ async def get_teams(
         query = query.filter(Team.status == status)
     
     teams = query.offset(skip).limit(limit).all()
+    
+    # Pre-fetch all weights to avoid repeated queries
+    weights_cache = {}
+    all_round_ids = set()
+    
+    # Get all relevant round IDs first
+    evaluated_rounds = db.query(UnifiedEvent).filter(
+        UnifiedEvent.is_evaluated == True,
+        UnifiedEvent.round_number > 0
+    ).all()
+    
+    frozen_rounds = db.query(UnifiedEvent).filter(
+        UnifiedEvent.is_frozen == True,
+        UnifiedEvent.is_evaluated == False,
+        UnifiedEvent.round_number > 0
+    ).all()
+    
+    for round_obj in evaluated_rounds + frozen_rounds:
+        all_round_ids.add(round_obj.id)
+    
+    # Pre-fetch all existing weights
+    if all_round_ids:
+        existing_weights = db.query(RoundWeight).filter(
+            RoundWeight.round_id.in_(all_round_ids)
+        ).all()
+        
+        for weight in existing_weights:
+            weights_cache[weight.round_id] = weight.weight_percentage
+        
+        # Create missing weights in batch
+        missing_round_ids = all_round_ids - set(weights_cache.keys())
+        for round_id in missing_round_ids:
+            weight = RoundWeight(
+                round_id=round_id,
+                weight_percentage=100.0
+            )
+            db.add(weight)
+            weights_cache[round_id] = 100.0
+        
+        # Commit all new weights at once
+        if missing_round_ids:
+            db.commit()
     
     # Then get members for each team separately and create proper Pydantic models
     result = []
@@ -59,6 +178,9 @@ async def get_teams(
             for member in members
         ]
         
+        # Calculate overall score using cached weights
+        overall_score = calculate_overall_score(team.team_id, db, weights_cache)
+        
         # Create team dictionary
         team_dict = {
             "id": team.id,
@@ -70,6 +192,7 @@ async def get_teams(
             "leader_email": team.leader_email,
             "current_round": team.current_round,
             "status": team.status,
+            "overall_score": overall_score,
             "created_at": team.created_at,
             "updated_at": team.updated_at,
             "members": [

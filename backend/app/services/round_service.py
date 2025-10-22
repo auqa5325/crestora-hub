@@ -320,29 +320,61 @@ class RoundService:
         if not all_active_teams:
             raise ValueError("No active teams found for shortlisting")
         
-        # Get team scores for this round, sorted by score (descending)
-        team_scores = self.db.query(TeamScore).filter(
-            TeamScore.round_id == round_id
-        ).order_by(TeamScore.score.desc()).all()
+        # Pre-fetch all weights to avoid repeated queries
+        weights_cache = {}
+        all_round_ids = set()
         
-        print(f"Found {len(team_scores)} team scores for round {round_id}")
+        # Get all relevant round IDs first
+        evaluated_rounds = self.db.query(UnifiedEvent).filter(
+            UnifiedEvent.is_evaluated == True,
+            UnifiedEvent.round_number > 0
+        ).all()
         
-        # Create a mapping of team_id to score (0 for teams without scores)
-        score_map = {ts.team_id: ts.score for ts in team_scores}
+        frozen_rounds = self.db.query(UnifiedEvent).filter(
+            UnifiedEvent.is_frozen == True,
+            UnifiedEvent.is_evaluated == False,
+            UnifiedEvent.round_number > 0
+        ).all()
         
-        # Create list of all teams with their scores (including 0 scores for unevaluated teams)
+        for round_obj in evaluated_rounds + frozen_rounds:
+            all_round_ids.add(round_obj.id)
+        
+        # Pre-fetch all existing weights
+        if all_round_ids:
+            existing_weights = self.db.query(RoundWeight).filter(
+                RoundWeight.round_id.in_(all_round_ids)
+            ).all()
+            
+            for weight in existing_weights:
+                weights_cache[weight.round_id] = weight.weight_percentage
+            
+            # Create missing weights in batch
+            missing_round_ids = all_round_ids - set(weights_cache.keys())
+            for round_id in missing_round_ids:
+                weight = RoundWeight(
+                    round_id=round_id,
+                    weight_percentage=100.0
+                )
+                self.db.add(weight)
+                weights_cache[round_id] = 100.0
+            
+            # Commit all new weights at once
+            if missing_round_ids:
+                self.db.commit()
+        
+        # Calculate overall scores for all teams using cached weights
         all_teams_with_scores = []
         for team in all_active_teams:
-            score = score_map.get(team.team_id, 0.0)  # Default to 0 if no score
+            overall_score = self._calculate_overall_score(team.team_id, weights_cache)
             all_teams_with_scores.append({
                 'team_id': team.team_id,
                 'team_name': team.team_name,
-                'score': score
+                'score': overall_score or 0.0  # Default to 0 if no overall score
             })
         
-        # Sort by score (descending)
+        # Sort by overall score (descending)
         all_teams_with_scores.sort(key=lambda x: x['score'], reverse=True)
-        print(f"All teams with scores: {[(t['team_id'], t['score']) for t in all_teams_with_scores]}")
+        print(f"All teams with overall scores: {[(t['team_id'], t['score']) for t in all_teams_with_scores]}")
         
         if not all_teams_with_scores:
             raise ValueError("No teams found for shortlisting")
@@ -400,3 +432,79 @@ class RoundService:
             "shortlist_type": shortlist_type,
             "shortlist_value": value
         }
+
+
+    def _calculate_overall_score(self, team_id: str, weights_cache: dict = None) -> Optional[float]:
+        """Calculate overall score (weighted average) for a team based on evaluated rounds + current frozen round"""
+        # Get all evaluated rounds + current frozen round (if not yet evaluated)
+        evaluated_rounds = self.db.query(UnifiedEvent).filter(
+            UnifiedEvent.is_evaluated == True,
+            UnifiedEvent.round_number > 0
+        ).all()
+        
+        # Also include any frozen rounds that are not yet evaluated (current round)
+        frozen_rounds = self.db.query(UnifiedEvent).filter(
+            UnifiedEvent.is_frozen == True,
+            UnifiedEvent.is_evaluated == False,
+            UnifiedEvent.round_number > 0
+        ).all()
+        
+        # Combine both sets
+        all_rounds = evaluated_rounds + frozen_rounds
+        
+        if not all_rounds:
+            return None
+        
+        # Create a set of round IDs for faster lookup
+        round_ids = {round_obj.id for round_obj in all_rounds}
+        
+        # Get team scores for all relevant rounds
+        team_scores = self.db.query(TeamScore).filter(
+            TeamScore.team_id == team_id,
+            TeamScore.round_id.in_(round_ids)
+        ).all()
+        
+        # Create a dictionary of scores for easier lookup
+        team_scores_dict = {score.round_id: score.score for score in team_scores}
+        
+        # Calculate weighted average (including 0 scores for missing rounds)
+        total_weighted_score = 0.0
+        total_weight = 0.0
+        
+        for round_id in round_ids:
+            # Use cached weight if available, otherwise query database
+            if weights_cache and round_id in weights_cache:
+                weight_percentage = weights_cache[round_id]
+            else:
+                # Get weight for this round, create default if not exists
+                weight = self.db.query(RoundWeight).filter(
+                    RoundWeight.round_id == round_id
+                ).first()
+                
+                if not weight:
+                    # Create default weight of 100%
+                    weight = RoundWeight(
+                        round_id=round_id,
+                        weight_percentage=100.0
+                    )
+                    self.db.add(weight)
+                    # Don't commit here - let caller handle batch commit
+                    weight_percentage = 100.0
+                else:
+                    weight_percentage = weight.weight_percentage
+                
+                # Cache the weight for future use
+                if weights_cache is not None:
+                    weights_cache[round_id] = weight_percentage
+            
+            # Get score for this round (0 if not found)
+            round_score = team_scores_dict.get(round_id, 0.0)
+            
+            weight_value = weight_percentage / 100.0  # Convert to decimal
+            total_weighted_score += round_score * weight_value
+            total_weight += weight_value
+        
+        if total_weight == 0:
+            return None
+        
+        return total_weighted_score / total_weight

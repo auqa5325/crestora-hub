@@ -394,3 +394,4 @@ async def shortlist_teams(
         db.rollback()
         print(f"Error shortlisting teams: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to shortlist teams: {str(e)}")
+
