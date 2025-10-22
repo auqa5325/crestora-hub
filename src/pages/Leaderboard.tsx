@@ -565,10 +565,10 @@ const Leaderboard = () => {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-green-600">
-                {leaderboard.length > 0 ? Math.max(...leaderboard.map(t => t.final_score)) : 0}
+                {leaderboard.length > 0 ? Math.max(...leaderboard.map(t => t.weighted_average)) : 0}
               </div>
               <p className="text-xs text-muted-foreground">
-                Highest score
+                Highest weighted average score
               </p>
             </CardContent>
           </Card>
@@ -582,20 +582,20 @@ const Leaderboard = () => {
                 {(() => {
                   if (leaderboard.length === 0) return 0;
                   
-                  // Get all non-zero scores
+                  // Get all non-zero weighted average scores
                   const nonZeroScores = leaderboard
-                    .map(team => team.final_score)
+                    .map(team => team.weighted_average)
                     .filter(score => score > 0);
                   
                   if (nonZeroScores.length === 0) return 0;
                   
-                  // Calculate average of non-zero scores
+                  // Calculate average of non-zero weighted average scores
                   const average = nonZeroScores.reduce((sum, score) => sum + score, 0) / nonZeroScores.length;
                   return Math.round(average);
                 })()}
               </div>
               <p className="text-xs text-muted-foreground">
-                Average of non-zero scores
+                Average of non-zero weighted scores
               </p>
             </CardContent>
           </Card>
