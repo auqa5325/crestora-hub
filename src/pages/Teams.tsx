@@ -400,6 +400,15 @@ const Teams = () => {
                   </span>
                   <span className="font-semibold">{team.current_round}</span>
                 </div>
+                {team.overall_score !== undefined && (
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-muted-foreground flex items-center gap-1">
+                      <Trophy className="h-4 w-4" />
+                      Overall Score
+                    </span>
+                    <span className="font-semibold text-green-600">{team.overall_score.toFixed(1)}</span>
+                  </div>
+                )}
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-muted-foreground flex items-center gap-1">
                     <Mail className="h-4 w-4" />

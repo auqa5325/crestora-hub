@@ -22,7 +22,8 @@ import {
   ArrowLeft,
   RefreshCw,
   Trophy,
-  Filter
+  Filter,
+  Search
 } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiService, Team, Event, TeamScore, RoundStats } from "@/services/api";
@@ -58,14 +59,15 @@ const RoundEvaluation = () => {
   const [teamEvaluations, setTeamEvaluations] = useState<TeamEvaluation[]>([]);
   const [isCriteriaModalOpen, setIsCriteriaModalOpen] = useState(false);
   const [isFreezeDialogOpen, setIsFreezeDialogOpen] = useState(false);
-  const [isShortlistModalOpen, setIsShortlistModalOpen] = useState(false);
-  const [isShortlistConfirmOpen, setIsShortlistConfirmOpen] = useState(false);
-  const [shortlistType, setShortlistType] = useState<'top_k' | 'threshold'>('top_k');
-  const [shortlistValue, setShortlistValue] = useState<number>(5);
   const [roundStats, setRoundStats] = useState<RoundStats | null>(null);
   const initializedRef = useRef(false);
   const [unsavedChanges, setUnsavedChanges] = useState<Set<string>>(new Set());
   const [savedScores, setSavedScores] = useState<Map<string, number>>(new Map());
+  
+  // Filter states
+  const [searchTerm, setSearchTerm] = useState("");
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [evaluationFilter, setEvaluationFilter] = useState<string>("all");
 
   // Get round ID from URL params
   useEffect(() => {
@@ -190,31 +192,6 @@ const RoundEvaluation = () => {
     },
   });
 
-  // Shortlist teams mutation
-  const shortlistTeamsMutation = useMutation({
-    mutationFn: ({ shortlistType, value }: { shortlistType: 'top_k' | 'threshold'; value: number }) =>
-      apiService.shortlistTeams(selectedRoundId!, shortlistType, value),
-    onSuccess: (data) => {
-      toast({
-        title: "Teams Shortlisted",
-        description: `${data.shortlisted_count} teams shortlisted, ${data.eliminated_count} teams eliminated.`,
-      });
-      queryClient.invalidateQueries({ queryKey: ['teams'] });
-      queryClient.invalidateQueries({ queryKey: ['round-stats', selectedRoundId] });
-      queryClient.invalidateQueries({ queryKey: ['round-evaluations', selectedRoundId] });
-      setIsShortlistModalOpen(false);
-      setIsShortlistConfirmOpen(false);
-    },
-    onError: (error: any) => {
-      console.error('Shortlist error:', error);
-      const errorMessage = error?.response?.data?.detail || error?.message || "Failed to shortlist teams. Please try again.";
-      toast({
-        title: "Error",
-        description: errorMessage,
-        variant: "destructive",
-      });
-    },
-  });
 
   // Initialize criteria and team evaluations
   useEffect(() => {
@@ -408,52 +385,6 @@ const RoundEvaluation = () => {
     freezeRoundMutation.mutate();
   };
 
-  // Shortlist teams handlers
-  const handleShortlistTeams = () => {
-    // Reset values when opening modal
-    setShortlistType('top_k');
-    setShortlistValue(5);
-    setIsShortlistModalOpen(true);
-  };
-
-  const handleApplyShortlist = () => {
-    // Validate values before proceeding
-    if (shortlistType === 'top_k' && (shortlistValue <= 0 || shortlistValue > teamEvaluations.length)) {
-      toast({
-        title: "Invalid Input",
-        description: `Please enter a valid number between 1 and ${teamEvaluations.length}`,
-        variant: "destructive",
-      });
-      return;
-    }
-    
-    if (shortlistType === 'threshold' && (shortlistValue < 0 || shortlistValue > 100)) {
-      toast({
-        title: "Invalid Input",
-        description: "Please enter a valid score between 0 and 100",
-        variant: "destructive",
-      });
-      return;
-    }
-    
-    setIsShortlistModalOpen(false);
-    setIsShortlistConfirmOpen(true);
-  };
-
-  const handleConfirmShortlist = () => {
-    shortlistTeamsMutation.mutate({
-      shortlistType,
-      value: shortlistValue
-    });
-  };
-
-  // Calculate team count for threshold
-  const getThresholdTeamCount = () => {
-    if (shortlistType === 'threshold') {
-      return teamEvaluations.filter(team => team.normalized_score >= shortlistValue).length;
-    }
-    return 0;
-  };
 
   // Export round data
   const exportRoundData = async () => {
@@ -478,8 +409,25 @@ const RoundEvaluation = () => {
     }
   };
 
-  // Separate evaluated and non-evaluated teams
-  const evaluatedTeams = teamEvaluations
+  // Filter teams based on search and filters
+  const filteredTeamEvaluations = teamEvaluations.filter(evaluation => {
+    const team = teams?.find(t => t.team_id === evaluation.team_id);
+    if (!team) return false;
+    
+    const matchesSearch = evaluation.team_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         evaluation.leader_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         evaluation.team_id.toLowerCase().includes(searchTerm.toLowerCase());
+    
+    const matchesStatus = statusFilter === "all" || team.status === statusFilter;
+    const matchesEvaluation = evaluationFilter === "all" || 
+      (evaluationFilter === "evaluated" && evaluation.is_evaluated) ||
+      (evaluationFilter === "not_evaluated" && !evaluation.is_evaluated);
+    
+    return matchesSearch && matchesStatus && matchesEvaluation;
+  });
+
+  // Separate evaluated and non-evaluated teams from filtered results
+  const evaluatedTeams = filteredTeamEvaluations
     .filter(team => team.is_evaluated)
     .sort((a, b) => {
       // Use saved scores for sorting, fallback to current score if not saved yet
@@ -488,7 +436,7 @@ const RoundEvaluation = () => {
       return scoreB - scoreA;
     });
   
-  const nonEvaluatedTeams = teamEvaluations
+  const nonEvaluatedTeams = filteredTeamEvaluations
     .filter(team => !team.is_evaluated)
     .sort((a, b) => a.team_name.localeCompare(b.team_name));
 
@@ -508,16 +456,16 @@ const RoundEvaluation = () => {
   }
 
   if (!selectedRound) {
-    return (
-      <DashboardLayout>
-        <div className="space-y-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-3xl font-bold mb-2">Round Evaluation</h1>
+  return (
+    <DashboardLayout>
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold mb-2">Round Evaluation</h1>
               <p className="text-muted-foreground text-red-500">
                 Round not found or you don't have access to it.
-              </p>
-            </div>
+            </p>
+          </div>
             <Button variant="outline" onClick={() => navigate('/rounds')}>
               <ArrowLeft className="h-4 w-4 mr-2" />
               Back to Rounds
@@ -599,31 +547,76 @@ const RoundEvaluation = () => {
                   <span className="xs:hidden">Freeze</span>
                 </Button>
               )}
-              {stats?.is_frozen && user?.role === 'admin' && !stats?.is_evaluated && (
-                <Button
-                  onClick={handleShortlistTeams}
-                  className="bg-purple-600 hover:bg-purple-700 flex-1 sm:flex-none"
-                  size="sm"
-                >
-                  <Trophy className="h-4 w-4 mr-2" />
-                  <span className="hidden xs:inline">Shortlist Teams</span>
-                  <span className="xs:hidden">Shortlist</span>
-                </Button>
-              )}
-              {stats?.is_frozen && user?.role === 'admin' && stats?.is_evaluated && (
-                <Button
-                  disabled
-                  className="bg-gray-400 cursor-not-allowed flex-1 sm:flex-none"
-                  size="sm"
-                >
-                  <Trophy className="h-4 w-4 mr-2" />
-                  <span className="hidden xs:inline">Teams Shortlisted</span>
-                  <span className="xs:hidden">Shortlisted</span>
-                </Button>
-              )}
             </div>
           </div>
         </div>
+
+        {/* Filters */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Filter className="h-5 w-5" />
+                Filters
+              </div>
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={() => {
+                  refetchEvaluations();
+                  initializedRef.current = false; // Allow re-initialization
+                }}
+                className="flex items-center gap-2"
+              >
+                <RefreshCw className="h-4 w-4" />
+                Refresh
+              </Button>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid gap-4 md:grid-cols-3">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Search Teams</label>
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Search by team name, leader, or ID..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="pl-10"
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Team Status</label>
+                <Select value={statusFilter} onValueChange={setStatusFilter}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="All statuses" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Statuses</SelectItem>
+                    <SelectItem value="ACTIVE">Active</SelectItem>
+                    <SelectItem value="ELIMINATED">Eliminated</SelectItem>
+                    <SelectItem value="COMPLETED">Completed</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Evaluation Status</label>
+                <Select value={evaluationFilter} onValueChange={setEvaluationFilter}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="All evaluations" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Teams</SelectItem>
+                    <SelectItem value="evaluated">Evaluated</SelectItem>
+                    <SelectItem value="not_evaluated">Not Evaluated</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
 
         {/* Round Status */}
         {stats?.is_frozen && (
@@ -689,23 +682,39 @@ const RoundEvaluation = () => {
                 <div className="text-center py-8 text-muted-foreground">
                   <Trophy className="h-12 w-12 mx-auto mb-4 opacity-50" />
                   <p>No teams found.</p>
-                </div>
+                      </div>
               ) : (
                 <div className="space-y-4">
                   {(() => {
-                    // For frozen view, show ALL teams (including ELIMINATED) with their scores
-                    const allTeamsWithScores = teams.map(team => {
-                      const evaluation = teamEvaluations.find(evalItem => evalItem.team_id === team.team_id);
-                      return {
-                        team_id: team.team_id,
-                        team_name: team.team_name,
-                        leader_name: team.leader_name,
-                        status: team.status,
-                        normalized_score: evaluation?.normalized_score || 0,
-                        total_score: evaluation?.total_score || 0,
-                        criteria_scores: evaluation?.criteria_scores || {}
-                      };
-                    });
+                    // For frozen view, show filtered teams (including ELIMINATED) with their scores
+                    const allTeamsWithScores = teams
+                      .filter(team => {
+                        const evaluation = teamEvaluations.find(evalItem => evalItem.team_id === team.team_id);
+                        if (!evaluation) return false;
+                        
+                        const matchesSearch = evaluation.team_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                                             evaluation.leader_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                                             evaluation.team_id.toLowerCase().includes(searchTerm.toLowerCase());
+                        
+                        const matchesStatus = statusFilter === "all" || team.status === statusFilter;
+                        const matchesEvaluation = evaluationFilter === "all" || 
+                          (evaluationFilter === "evaluated" && evaluation.is_evaluated) ||
+                          (evaluationFilter === "not_evaluated" && !evaluation.is_evaluated);
+                        
+                        return matchesSearch && matchesStatus && matchesEvaluation;
+                      })
+                      .map(team => {
+                        const evaluation = teamEvaluations.find(evalItem => evalItem.team_id === team.team_id);
+                        return {
+                          team_id: team.team_id,
+                          team_name: team.team_name,
+                          leader_name: team.leader_name,
+                          status: team.status,
+                          normalized_score: evaluation?.normalized_score || 0,
+                          total_score: evaluation?.total_score || 0,
+                          criteria_scores: evaluation?.criteria_scores || {}
+                        };
+                      });
                     
                     // Sort by normalized score (descending)
                     allTeamsWithScores.sort((a, b) => b.normalized_score - a.normalized_score);
@@ -735,7 +744,7 @@ const RoundEvaluation = () => {
                                   ) : teamData.status === 'ACTIVE' ? (
                                     <Badge variant="default" className="text-xs bg-green-100 text-green-800 flex-shrink-0">ACTIVE</Badge>
                                   ) : null}
-                                </div>
+                        </div>
                               </div>
                             </div>
                             <div className="text-right flex-shrink-0">
@@ -762,7 +771,7 @@ const RoundEvaluation = () => {
                               </div>
                             ))}
                           </div>
-                        </div>
+                    </div>
                   </CardContent>
                 </Card>
                     ));
@@ -932,8 +941,8 @@ const RoundEvaluation = () => {
                                 </h3>
                                 <div className="flex items-center gap-2 flex-wrap mt-1">
                                   <p className="text-sm text-muted-foreground break-words">
-                                    Leader: {evaluation.leader_name}
-                                  </p>
+                                Leader: {evaluation.leader_name}
+                              </p>
                                   {(() => {
                                     const team = teams?.find(t => t.team_id === evaluation.team_id);
                                     if (team?.status === 'ELIMINATED') {
@@ -943,14 +952,14 @@ const RoundEvaluation = () => {
                                     }
                                     return null;
                                   })()}
-                                </div>
+                            </div>
                               </div>
                               <div className="text-right flex-shrink-0">
                                 <div className="text-xl sm:text-2xl font-bold text-yellow-600">
-                                  {evaluation.normalized_score.toFixed(1)}
-                                </div>
+                                {evaluation.normalized_score.toFixed(1)}
+                              </div>
                                 <div className="text-xs sm:text-sm text-muted-foreground">
-                                  Normalized Score
+                                Normalized Score
                                 </div>
                                 <div className="text-xs text-muted-foreground">
                                   Raw: {evaluation.total_score.toFixed(1)}
@@ -1104,138 +1113,6 @@ const RoundEvaluation = () => {
           </AlertDialogContent>
         </AlertDialog>
 
-        {/* Shortlist Teams Modal */}
-        <Dialog open={isShortlistModalOpen} onOpenChange={setIsShortlistModalOpen}>
-          <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-2">
-                <Trophy className="h-5 w-5" />
-                Shortlist Teams
-              </DialogTitle>
-              <DialogDescription>
-                Choose how to shortlist teams for the next round
-              </DialogDescription>
-            </DialogHeader>
-            
-            <div className="space-y-4">
-              <div>
-                <Label htmlFor="shortlist-type">Shortlist Method</Label>
-                <Select value={shortlistType} onValueChange={(value: 'top_k' | 'threshold') => setShortlistType(value)}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select shortlist method" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="top_k">Top K Teams</SelectItem>
-                    <SelectItem value="threshold">Score Threshold</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              
-              {shortlistType === 'top_k' && (
-                <div>
-                  <Label htmlFor="top-k">Number of Teams</Label>
-                <Input
-                    id="top-k"
-                  type="number"
-                  min="1"
-                    max={teamEvaluations.length}
-                    value={shortlistValue}
-                    onChange={(e) => {
-                      const inputValue = e.target.value;
-                      // Allow empty input for editing
-                      if (inputValue === '') {
-                        setShortlistValue(0);
-                      } else {
-                        const value = parseInt(inputValue);
-                        if (!isNaN(value) && value > 0) {
-                          setShortlistValue(value);
-                        }
-                      }
-                    }}
-                    onBlur={(e) => {
-                      // Ensure we have a valid value when focus is lost
-                      const value = parseInt(e.target.value);
-                      if (isNaN(value) || value <= 0) {
-                        setShortlistValue(5); // Reset to default
-                      }
-                    }}
-                  />
-                  <p className="text-sm text-muted-foreground mt-1">
-                    Select the top {shortlistValue} teams
-                  </p>
-              </div>
-              )}
-
-              {shortlistType === 'threshold' && (
-                <div>
-                  <Label htmlFor="threshold">Score Threshold</Label>
-                  <Input
-                    id="threshold"
-                    type="number"
-                    min="0"
-                    max="100"
-                    step="0.1"
-                    value={shortlistValue}
-                    onChange={(e) => {
-                      const inputValue = e.target.value;
-                      // Allow empty input for editing
-                      if (inputValue === '') {
-                        setShortlistValue(0);
-                      } else {
-                        const value = parseFloat(inputValue);
-                        if (!isNaN(value) && value >= 0) {
-                          setShortlistValue(value);
-                        }
-                      }
-                    }}
-                    onBlur={(e) => {
-                      // Ensure we have a valid value when focus is lost
-                      const value = parseFloat(e.target.value);
-                      if (isNaN(value) || value < 0) {
-                        setShortlistValue(50); // Reset to default
-                      }
-                    }}
-                  />
-                  <p className="text-sm text-muted-foreground mt-1">
-                    {getThresholdTeamCount()} teams have score ≥ {shortlistValue}
-                  </p>
-                </div>
-              )}
-            </div>
-            
-            <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={() => setIsShortlistModalOpen(false)}>
-                Cancel
-              </Button>
-              <Button onClick={handleApplyShortlist} className="bg-purple-600 hover:bg-purple-700">
-                <Filter className="h-4 w-4 mr-2" />
-                Apply Shortlist
-              </Button>
-            </div>
-          </DialogContent>
-        </Dialog>
-
-        {/* Shortlist Confirmation Dialog */}
-        <AlertDialog open={isShortlistConfirmOpen} onOpenChange={setIsShortlistConfirmOpen}>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Confirm Shortlist</AlertDialogTitle>
-              <AlertDialogDescription>
-                Are you sure? This will eliminate teams that don't meet the criteria. 
-                {shortlistType === 'top_k' 
-                  ? ` Top ${shortlistValue} teams will be shortlisted.`
-                  : ` Teams with score ≥ ${shortlistValue} will be shortlisted (${getThresholdTeamCount()} teams).`
-                }
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>Cancel</AlertDialogCancel>
-              <AlertDialogAction onClick={handleConfirmShortlist} className="bg-purple-600 hover:bg-purple-700">
-                Apply Shortlist
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
       </div>
     </DashboardLayout>
   );

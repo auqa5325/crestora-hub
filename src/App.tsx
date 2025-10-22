@@ -16,7 +16,15 @@ import Leaderboard from "./pages/Leaderboard";
 import Finance from "./pages/Finance";
 import NotFound from "./pages/NotFound";
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      refetchOnWindowFocus: false, // Disable refetch on window focus
+      refetchOnReconnect: false,   // Disable refetch on network reconnect
+      staleTime: 30 * 1000,       // Consider data fresh for 30 seconds (shorter for better responsiveness)
+    },
+  },
+});
 
 const App = () => (
   <QueryClientProvider client={queryClient}>

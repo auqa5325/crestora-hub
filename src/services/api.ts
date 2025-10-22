@@ -1,5 +1,5 @@
 // API service for Crestora'25 backend
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
+const API_BASE_URL =  'http://localhost:8000/api';
 
 export interface Team {
   id: number;
@@ -11,6 +11,7 @@ export interface Team {
   leader_email: string;
   current_round: number;
   status: 'ACTIVE' | 'ELIMINATED' | 'COMPLETED';
+  overall_score?: number; // Weighted average of all frozen rounds
   created_at: string;
   updated_at?: string;
   members: TeamMember[];
@@ -163,7 +164,10 @@ export interface EvaluatedRound {
   round_name: string;
   event_id: string;
   weight_percentage: number;
+  is_frozen?: boolean;
+  is_evaluated?: boolean;
 }
+
 
 class ApiService {
   private async request<T>(endpoint: string, options?: RequestInit): Promise<T> {
@@ -305,10 +309,23 @@ class ApiService {
     });
 
     if (!response.ok) {
-      throw new Error(`Login failed: ${response.status} ${response.statusText}`);
+      let errorMessage = `Login failed: ${response.status} ${response.statusText}`;
+      try {
+        const errorData = await response.json();
+        if (errorData.detail) {
+          errorMessage = errorData.detail;
+        }
+      } catch (e) {
+        // If we can't parse the error response, use the default message
+      }
+      throw new Error(errorMessage);
     }
 
-    return response.json();
+    try {
+      return await response.json();
+    } catch (error) {
+      throw new Error('Invalid response format from server');
+    }
   }
 
   async register(userData: {
@@ -437,6 +454,7 @@ class ApiService {
     return this.request<{evaluated_rounds: EvaluatedRound[]}>('/leaderboard/evaluated-rounds');
   }
 
+
   async updateRoundWeight(roundId: number, weightPercentage: number): Promise<RoundWeight> {
     return this.request<RoundWeight>(`/leaderboard/weights/${roundId}`, {
       method: 'PUT',
@@ -463,7 +481,7 @@ class ApiService {
     return this.request<TeamScore[]>(`/teams/${teamId}/scores`);
   }
 
-  // Shortlist API
+  // Shortlist API (old per-round method - kept for backwards compatibility)
   async shortlistTeams(roundId: number, shortlistType: 'top_k' | 'threshold', value: number): Promise<{
     shortlisted_count: number;
     eliminated_count: number;
@@ -472,6 +490,24 @@ class ApiService {
     shortlist_value: number;
   }> {
     return this.request(`/rounds/rounds/${roundId}/shortlist`, {
+      method: 'POST',
+      body: JSON.stringify({
+        type: shortlistType,
+        value: value
+      }),
+    });
+  }
+
+  // New leaderboard shortlist API (based on overall scores)
+  async shortlistTeamsByOverallScore(shortlistType: 'top_k' | 'threshold', value: number): Promise<{
+    shortlisted_count: number;
+    eliminated_count: number;
+    shortlisted_teams: string[];
+    frozen_rounds_count: number;
+    shortlist_type: string;
+    shortlist_value: number;
+  }> {
+    return this.request(`/leaderboard/shortlist`, {
       method: 'POST',
       body: JSON.stringify({
         type: shortlistType,

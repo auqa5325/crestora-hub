@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { 
   Calendar, 
   Users, 
@@ -21,11 +22,12 @@ import {
   Trophy,
   Target,
   Play,
-  Eye
+  Eye,
+  Settings
 } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiService } from "@/services/api";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
@@ -68,6 +70,8 @@ const RoundsDashboard = () => {
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [modeFilter, setModeFilter] = useState<string>("all");
   const [clubFilter, setClubFilter] = useState<string>("all");
+  const [evaluatedRounds, setEvaluatedRounds] = useState<any[]>([]);
+  const [roundWeights, setRoundWeights] = useState<Record<number, number>>({});
 
   const { data: events, isLoading, error } = useQuery<Event[]>({
     queryKey: ['events'],
@@ -75,6 +79,73 @@ const RoundsDashboard = () => {
     refetchInterval: 30000,
   });
 
+  // Fetch evaluated rounds for weight configuration (same as leaderboard)
+  const { data: evaluatedRoundsData, isLoading: evaluatedRoundsLoading } = useQuery({
+    queryKey: ['evaluated-rounds'],
+    queryFn: () => apiService.getEvaluatedRounds(),
+    refetchInterval: 30000,
+  });
+
+  // Update weight mutation
+  const updateWeightMutation = useMutation({
+    mutationFn: ({ roundId, weight }: { roundId: number; weight: number }) =>
+      apiService.updateRoundWeight(roundId, weight),
+    onSuccess: () => {
+      toast({
+        title: "Weight updated",
+        description: "Round weight has been updated successfully.",
+      });
+      queryClient.invalidateQueries({ queryKey: ['evaluated-rounds'] });
+    },
+    onError: (error) => {
+      toast({
+        title: "Error",
+        description: "Failed to update weight. Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Handle evaluated rounds data
+  useEffect(() => {
+    if (evaluatedRoundsData?.evaluated_rounds) {
+      setEvaluatedRounds(evaluatedRoundsData.evaluated_rounds);
+      // Initialize weights state
+      const weights: Record<number, number> = {};
+      evaluatedRoundsData.evaluated_rounds.forEach((round: any) => {
+        weights[round.round_id] = round.weight_percentage;
+      });
+      setRoundWeights(weights);
+    }
+  }, [evaluatedRoundsData]);
+
+  // Handle weight change
+  const handleWeightChange = (roundId: number, newWeight: number) => {
+    setRoundWeights(prev => ({
+      ...prev,
+      [roundId]: newWeight
+    }));
+  };
+
+  // Save all weights
+  const saveAllWeights = async () => {
+    try {
+      const promises = Object.entries(roundWeights).map(([roundId, weight]) =>
+        updateWeightMutation.mutateAsync({ roundId: parseInt(roundId), weight })
+      );
+      await Promise.all(promises);
+      toast({
+        title: "All weights updated",
+        description: "All round weights have been updated successfully.",
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to update some weights. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
 
   // Extract all rounds from events
   const allRounds = events?.flatMap(event => 
@@ -302,6 +373,99 @@ const RoundsDashboard = () => {
             </div>
           </CardContent>
         </Card>
+
+        {/* Round Weight Configuration */}
+        {evaluatedRounds.length > 0 && user?.role === 'admin' ? (
+          <Card className="shadow-card">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Settings className="h-5 w-5" />
+                Round Weight Configuration
+              </CardTitle>
+              <CardDescription>
+                Configure weight percentages for frozen rounds. These weights affect the final leaderboard calculations.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                <div className="overflow-x-auto">
+                  <table className="w-full border-collapse">
+                    <thead>
+                      <tr className="border-b">
+                        <th className="text-left p-2 font-medium">Round Name</th>
+                        <th className="text-left p-2 font-medium">Event ID</th>
+                        <th className="text-left p-2 font-medium">Weightage</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {evaluatedRounds.map((round) => (
+                        <tr key={round.round_id} className="border-b">
+                          <td className="p-2">
+                            <div className="font-medium">{round.round_name}</div>
+                          </td>
+                          <td className="p-2">
+                            <div className="text-sm text-muted-foreground">{round.event_id}</div>
+                          </td>
+                          <td className="p-2">
+                            <RadioGroup 
+                              value={roundWeights[round.round_id]?.toString() || "100"} 
+                              onValueChange={(value) => handleWeightChange(round.round_id, parseInt(value))}
+                              className="flex flex-row gap-4"
+                            >
+                              <div className="flex items-center space-x-2">
+                                <RadioGroupItem value="25" id={`${round.round_id}-25`} />
+                                <Label htmlFor={`${round.round_id}-25`} className="text-sm">25%</Label>
+                              </div>
+                              <div className="flex items-center space-x-2">
+                                <RadioGroupItem value="50" id={`${round.round_id}-50`} />
+                                <Label htmlFor={`${round.round_id}-50`} className="text-sm">50%</Label>
+                              </div>
+                              <div className="flex items-center space-x-2">
+                                <RadioGroupItem value="75" id={`${round.round_id}-75`} />
+                                <Label htmlFor={`${round.round_id}-75`} className="text-sm">75%</Label>
+                              </div>
+                              <div className="flex items-center space-x-2">
+                                <RadioGroupItem value="100" id={`${round.round_id}-100`} />
+                                <Label htmlFor={`${round.round_id}-100`} className="text-sm">100%</Label>
+                              </div>
+                              <div className="flex items-center space-x-2">
+                                <RadioGroupItem value="200" id={`${round.round_id}-200`} />
+                                <Label htmlFor={`${round.round_id}-200`} className="text-sm">200%</Label>
+                              </div>
+                            </RadioGroup>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <div className="flex justify-end">
+                  <Button 
+                    onClick={saveAllWeights}
+                    disabled={updateWeightMutation.isPending}
+                    className="gradient-hero"
+                  >
+                    {updateWeightMutation.isPending ? "Saving..." : "Save All Weights"}
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        ) : evaluatedRounds.length > 0 ? (
+          <Card className="shadow-card">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Settings className="h-5 w-5" />
+                Round Weight Configuration
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-muted-foreground">
+                Only PDA administrators can configure round weights.
+              </p>
+            </CardContent>
+          </Card>
+        ) : null}
 
         {/* Filters */}
         <Card className="shadow-card">
