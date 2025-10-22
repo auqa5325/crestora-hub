@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from typing import List, Optional, Dict, Any
+from pydantic import BaseModel, EmailStr
 from app.database import get_db
 from app.models.rounds import UnifiedEvent, EventType, EventStatus, EventMode
 from app.schemas.unified_event import (
@@ -10,9 +11,18 @@ from app.schemas.unified_event import (
 from app.schemas.team_score import TeamScoreInDB, TeamScoreUpdate
 from app.services.round_service import RoundService
 from app.services.export_service import ExportService
+from app.services.gmail_service import gmail_service
+from app.services.gmail_service_mock import mock_gmail_service
 from app.auth import get_current_user, require_pda_role, require_club_or_pda
+import logging
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/rounds", tags=["rounds"])
+
+class EmailRequest(BaseModel):
+    to_emails: List[EmailStr]
+    event_name: str = "Crestora'25"
 
 # New round management endpoints
 @router.post("/rounds", response_model=UnifiedEventInDB)
@@ -92,6 +102,106 @@ async def export_round_data(
     # Export the data
     export_service = ExportService(db)
     return export_service.export_round_data(round_id)
+
+@router.post("/rounds/{round_id}/export-email")
+async def export_round_data_via_email(
+    round_id: int,
+    email_request: EmailRequest,
+    db: Session = Depends(get_db),
+    current_user = Depends(require_pda_role())
+):
+    """Export round evaluations as CSV and send via email (PDA only)"""
+    
+    # Validate user has access to this round
+    round_service = RoundService(db)
+    round_service.validate_round_access(round_id, current_user.role, current_user.club)
+    
+    # Use mock service for testing if Gmail is not authenticated
+    email_service = gmail_service if gmail_service.is_authenticated() else mock_gmail_service
+    
+    if not gmail_service.is_authenticated():
+        print("Using mock Gmail service for testing")
+    
+    try:
+        # Get round information for email context
+        round_data = db.query(UnifiedEvent).filter(UnifiedEvent.id == round_id).first()
+        if not round_data:
+            raise HTTPException(status_code=404, detail="Round not found")
+        
+        # Export the data using the existing export service
+        export_service = ExportService(db)
+        csv_response = export_service.export_round_data(round_id)
+        
+        # Get CSV content as bytes
+        csv_content = csv_response.body.decode('utf-8')
+        csv_bytes = csv_content.encode('utf-8')
+        
+        # Send email with CSV attachment
+        try:
+            success = email_service.send_email_with_attachment(
+                to_emails=email_request.to_emails,
+                subject=f"{email_request.event_name} - {round_data.name} Round Evaluation Export",
+                body=f"""
+                <html>
+                <body>
+                    <h2>{email_request.event_name} - {round_data.name} Round Evaluation</h2>
+                    <p>Please find the attached CSV file with the round evaluation data.</p>
+                    <p>This export includes:</p>
+                    <ul>
+                        <li>All team evaluations for {round_data.name}</li>
+                        <li>Criteria scores and normalized scores</li>
+                        <li>Team status and evaluation timestamps</li>
+                    </ul>
+                    <p><strong>Round Details:</strong></p>
+                    <ul>
+                        <li>Round: {round_data.name}</li>
+                        <li>Event: {round_data.event_id}</li>
+                        <li>Club: {round_data.club or 'N/A'}</li>
+                    </ul>
+                    <p>Best regards,<br>
+                    Crestora'25 Team</p>
+                </body>
+                </html>
+                """,
+                attachment_data=csv_bytes,
+                attachment_filename=f"round_{round_id}_{round_data.name.replace(' ', '_')}_evaluations.csv",
+                attachment_mime_type="text/csv"
+            )
+            
+            if success:
+                return {
+                    "message": f"Round evaluation CSV sent successfully to {len(email_request.to_emails)} recipient(s)",
+                    "recipients": email_request.to_emails,
+                    "round_name": round_data.name,
+                    "event_name": email_request.event_name
+                }
+            else:
+                raise HTTPException(
+                    status_code=500, 
+                    detail="Failed to send email. Please check the server logs for details."
+                )
+        except Exception as email_error:
+            logger.error(f"Email sending failed: {str(email_error)}")
+            
+            # Check for Gmail API not enabled error
+            if "accessNotConfigured" in str(email_error) or "Gmail API has not been used" in str(email_error):
+                raise HTTPException(
+                    status_code=503,
+                    detail="Gmail API is not enabled. Please enable it in Google Cloud Console: https://console.developers.google.com/apis/api/gmail.googleapis.com/overview?project=731275370587"
+                )
+            
+            raise HTTPException(
+                status_code=500, 
+                detail=f"Email sending failed: {str(email_error)}"
+            )
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, 
+            detail=f"Failed to export and send round data: {str(e)}"
+        )
 
 @router.get("/", response_model=List[EventWithRounds])
 async def get_events(

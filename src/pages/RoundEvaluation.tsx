@@ -23,7 +23,9 @@ import {
   RefreshCw,
   Trophy,
   Filter,
-  Search
+  Search,
+  Mail,
+  Send
 } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiService, Team, Event, TeamScore, RoundStats } from "@/services/api";
@@ -68,6 +70,11 @@ const RoundEvaluation = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [evaluationFilter, setEvaluationFilter] = useState<string>("all");
+
+  // Email export state
+  const [isEmailModalOpen, setIsEmailModalOpen] = useState(false);
+  const [emailRecipients, setEmailRecipients] = useState<string>('');
+  const [eventName, setEventName] = useState<string>("Crestora'25");
 
   // Get round ID from URL params
   useEffect(() => {
@@ -187,6 +194,29 @@ const RoundEvaluation = () => {
       toast({
         title: "Error",
         description: "Failed to freeze round. Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Email export mutation
+  const emailExportMutation = useMutation({
+    mutationFn: ({ toEmails, eventName }: { toEmails: string[]; eventName: string }) =>
+      apiService.exportRoundDataViaEmail(selectedRoundId!, toEmails, eventName),
+    onSuccess: (data) => {
+      toast({
+        title: "Email Sent Successfully",
+        description: data.message,
+      });
+      setIsEmailModalOpen(false);
+      setEmailRecipients('');
+    },
+    onError: (error: any) => {
+      console.error('Email export error:', error);
+      const errorMessage = error?.response?.data?.detail || error?.message || "Failed to send email. Please try again.";
+      toast({
+        title: "Email Failed",
+        description: errorMessage,
         variant: "destructive",
       });
     },
@@ -409,6 +439,55 @@ const RoundEvaluation = () => {
     }
   };
 
+  // Email export handlers
+  const handleEmailExport = () => {
+    setIsEmailModalOpen(true);
+  };
+
+  const handleSendEmail = () => {
+    if (!emailRecipients.trim()) {
+      toast({
+        title: "Invalid Input",
+        description: "Please enter at least one email address.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Parse email addresses (comma or semicolon separated)
+    const emails = emailRecipients
+      .split(/[,;]/)
+      .map(email => email.trim())
+      .filter(email => email.length > 0);
+
+    if (emails.length === 0) {
+      toast({
+        title: "Invalid Input",
+        description: "Please enter valid email addresses.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Basic email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    const invalidEmails = emails.filter(email => !emailRegex.test(email));
+    
+    if (invalidEmails.length > 0) {
+      toast({
+        title: "Invalid Email Addresses",
+        description: `Please check these email addresses: ${invalidEmails.join(', ')}`,
+        variant: "destructive",
+      });
+      return;
+    }
+
+    emailExportMutation.mutate({
+      toEmails: emails,
+      eventName: eventName
+    });
+  };
+
   // Filter teams based on search and filters
   const filteredTeamEvaluations = teamEvaluations.filter(evaluation => {
     const team = teams?.find(t => t.team_id === evaluation.team_id);
@@ -517,9 +596,21 @@ const RoundEvaluation = () => {
                 className="flex-1 sm:flex-none"
               >
                 <Download className="h-4 w-4 mr-2" />
-                <span className="hidden xs:inline">Export Data</span>
-                <span className="xs:hidden">Export</span>
+                <span className="hidden xs:inline">Download CSV</span>
+                <span className="xs:hidden">Download</span>
               </Button>
+              {user?.role === 'admin' && (
+                <Button
+                  variant="outline"
+                  onClick={handleEmailExport}
+                  size="sm"
+                  className="flex-1 sm:flex-none"
+                >
+                  <Mail className="h-4 w-4 mr-2" />
+                  <span className="hidden xs:inline">Email CSV</span>
+                  <span className="xs:hidden">Email</span>
+                </Button>
+              )}
               <Button
                 variant="outline"
                 onClick={() => {
@@ -1112,6 +1203,64 @@ const RoundEvaluation = () => {
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+
+        {/* Email Export Modal */}
+        <Dialog open={isEmailModalOpen} onOpenChange={setIsEmailModalOpen}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Mail className="h-5 w-5" />
+                Email Round Evaluation CSV
+              </DialogTitle>
+              <DialogDescription>
+                Send the round evaluation CSV file to multiple recipients via email
+              </DialogDescription>
+            </DialogHeader>
+            
+            <div className="space-y-4">
+              <div>
+                <Label htmlFor="event-name">Event Name</Label>
+                <Input
+                  id="event-name"
+                  value={eventName}
+                  onChange={(e) => setEventName(e.target.value)}
+                  placeholder="Crestora'25"
+                />
+              </div>
+              
+              <div>
+                <Label htmlFor="email-recipients">Recipients</Label>
+                <Input
+                  id="email-recipients"
+                  value={emailRecipients}
+                  onChange={(e) => setEmailRecipients(e.target.value)}
+                  placeholder="email1@example.com, email2@example.com"
+                />
+                <p className="text-sm text-muted-foreground mt-1">
+                  Separate multiple email addresses with commas or semicolons
+                </p>
+              </div>
+            </div>
+            
+            <div className="flex justify-end gap-2">
+              <Button 
+                variant="outline" 
+                onClick={() => setIsEmailModalOpen(false)}
+                disabled={emailExportMutation.isPending}
+              >
+                Cancel
+              </Button>
+              <Button 
+                onClick={handleSendEmail} 
+                disabled={emailExportMutation.isPending}
+                className="gradient-hero"
+              >
+                <Send className="h-4 w-4 mr-2" />
+                {emailExportMutation.isPending ? "Sending..." : "Send Email"}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
 
       </div>
     </DashboardLayout>

@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, Response
 from sqlalchemy.orm import Session
 from sqlalchemy import func, and_
 from typing import List, Dict, Any
+from pydantic import BaseModel, EmailStr
 from app.database import get_db
 from app.models.team import Team, TeamStatus
 from app.models.team_score import TeamScore
@@ -9,10 +10,19 @@ from app.models.round_weight import RoundWeight
 from app.models.rounds import UnifiedEvent
 from app.schemas.round_weight import RoundWeightUpdate
 from app.auth import get_current_user, require_pda_role
+from app.services.gmail_service import gmail_service
+from app.services.gmail_service_mock import mock_gmail_service
 import csv
 import io
+import logging
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/leaderboard", tags=["leaderboard"])
+
+class EmailRequest(BaseModel):
+    to_emails: List[EmailStr]
+    event_name: str = "Crestora'25"
 
 @router.get("/evaluated-rounds")
 async def get_evaluated_rounds(db: Session = Depends(get_db)):
@@ -429,3 +439,138 @@ async def shortlist_teams_by_overall_score(
         "shortlist_type": shortlist_type,
         "shortlist_value": value
     }
+
+@router.get("/gmail-status")
+async def get_gmail_status():
+    """Check Gmail service status (for debugging)"""
+    return {
+        "authenticated": gmail_service.is_authenticated(),
+        "error": gmail_service.get_auth_error() if not gmail_service.is_authenticated() else None
+    }
+
+@router.post("/test-email")
+async def test_email_sending(
+    email_request: EmailRequest,
+    current_user = Depends(require_pda_role())
+):
+    """Test email sending (for debugging)"""
+    if not gmail_service.is_authenticated():
+        error_msg = gmail_service.get_auth_error()
+        raise HTTPException(
+            status_code=503, 
+            detail=f"Gmail service not configured: {error_msg}"
+        )
+    
+    try:
+        # Test with simple CSV data
+        test_csv = "Rank,Team Name,Score\n1,Test Team,100"
+        success = gmail_service.send_leaderboard_csv(
+            to_emails=email_request.to_emails,
+            csv_data=test_csv.encode('utf-8'),
+            event_name="Test Event"
+        )
+        
+        return {
+            "success": success,
+            "message": "Test email sent" if success else "Test email failed"
+        }
+    except Exception as e:
+        logger.error(f"Test email failed: {str(e)}")
+        raise HTTPException(
+            status_code=500, 
+            detail=f"Test email failed: {str(e)}"
+        )
+
+@router.post("/export-email")
+async def export_leaderboard_via_email(
+    email_request: EmailRequest,
+    db: Session = Depends(get_db),
+    current_user = Depends(require_pda_role())
+):
+    """Export leaderboard data as CSV and send via email (PDA only)"""
+    
+    # Use mock service for testing if Gmail is not authenticated
+    email_service = gmail_service if gmail_service.is_authenticated() else mock_gmail_service
+    
+    if not gmail_service.is_authenticated():
+        print("Using mock Gmail service for testing")
+    
+    try:
+        # Get leaderboard data
+        leaderboard_data = await get_leaderboard(db)
+        teams = leaderboard_data.get("teams", [])
+        
+        if not teams:
+            raise HTTPException(status_code=400, detail="No leaderboard data found to export")
+        
+        # Create CSV content
+        output = io.StringIO()
+        writer = csv.writer(output)
+        
+        # Write header
+        writer.writerow([
+            "Rank", "Team ID", "Team Name", "Leader Name", 
+            "Final Score", "Weighted Average", "Rounds Completed", 
+            "Current Round", "Status"
+        ])
+        
+        # Write data
+        for team in teams:
+            writer.writerow([
+                team["rank"],
+                team["team_id"],
+                team["team_name"],
+                team["leader_name"],
+                team["final_score"],
+                team["weighted_average"],
+                team["rounds_completed"],
+                team["current_round"],
+                team["status"]
+            ])
+        
+        # Get CSV content as bytes
+        csv_content = output.getvalue()
+        output.close()
+        csv_bytes = csv_content.encode('utf-8')
+        
+        # Send email with CSV attachment
+        try:
+            success = email_service.send_leaderboard_csv(
+                to_emails=email_request.to_emails,
+                csv_data=csv_bytes,
+                event_name=email_request.event_name
+            )
+            
+            if success:
+                return {
+                    "message": f"Leaderboard CSV sent successfully to {len(email_request.to_emails)} recipient(s)",
+                    "recipients": email_request.to_emails,
+                    "event_name": email_request.event_name
+                }
+            else:
+                raise HTTPException(
+                    status_code=500, 
+                    detail="Failed to send email. Please check the server logs for details."
+                )
+        except Exception as email_error:
+            logger.error(f"Email sending failed: {str(email_error)}")
+            
+            # Check for Gmail API not enabled error
+            if "accessNotConfigured" in str(email_error) or "Gmail API has not been used" in str(email_error):
+                raise HTTPException(
+                    status_code=503,
+                    detail="Gmail API is not enabled. Please enable it in Google Cloud Console: https://console.developers.google.com/apis/api/gmail.googleapis.com/overview?project=731275370587"
+                )
+            
+            raise HTTPException(
+                status_code=500, 
+                detail=f"Email sending failed: {str(email_error)}"
+            )
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, 
+            detail=f"Failed to export and send leaderboard: {str(e)}"
+        )

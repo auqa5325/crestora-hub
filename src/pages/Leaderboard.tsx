@@ -19,7 +19,9 @@ import {
   Settings,
   Download,
   Filter,
-  RefreshCw
+  RefreshCw,
+  Mail,
+  Send
 } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiService, Team, LeaderboardData, LeaderboardTeam, RoundWeight, EvaluatedRound } from "@/services/api";
@@ -39,6 +41,11 @@ const Leaderboard = () => {
   const [isShortlistConfirmOpen, setIsShortlistConfirmOpen] = useState(false);
   const [shortlistType, setShortlistType] = useState<'top_k' | 'threshold'>('top_k');
   const [shortlistValue, setShortlistValue] = useState<number>(5);
+
+  // Email export state
+  const [isEmailModalOpen, setIsEmailModalOpen] = useState(false);
+  const [emailRecipients, setEmailRecipients] = useState<string>('');
+  const [eventName, setEventName] = useState<string>("Crestora'25");
 
   const { data: teams, isLoading: teamsLoading } = useQuery<Team[]>({
     queryKey: ['teams'],
@@ -145,6 +152,29 @@ const Leaderboard = () => {
       const errorMessage = error?.response?.data?.detail || error?.message || "Failed to shortlist teams. Please try again.";
       toast({
         title: "Shortlisting Failed",
+        description: errorMessage,
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Email export mutation
+  const emailExportMutation = useMutation({
+    mutationFn: ({ toEmails, eventName }: { toEmails: string[]; eventName: string }) =>
+      apiService.exportLeaderboardViaEmail(toEmails, eventName),
+    onSuccess: (data) => {
+      toast({
+        title: "Email Sent Successfully",
+        description: data.message,
+      });
+      setIsEmailModalOpen(false);
+      setEmailRecipients('');
+    },
+    onError: (error: any) => {
+      console.error('Email export error:', error);
+      const errorMessage = error?.response?.data?.detail || error?.message || "Failed to send email. Please try again.";
+      toast({
+        title: "Email Failed",
         description: errorMessage,
         variant: "destructive",
       });
@@ -347,6 +377,55 @@ const Leaderboard = () => {
     }
   };
 
+  // Email export handlers
+  const handleEmailExport = () => {
+    setIsEmailModalOpen(true);
+  };
+
+  const handleSendEmail = () => {
+    if (!emailRecipients.trim()) {
+      toast({
+        title: "Invalid Input",
+        description: "Please enter at least one email address.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Parse email addresses (comma or semicolon separated)
+    const emails = emailRecipients
+      .split(/[,;]/)
+      .map(email => email.trim())
+      .filter(email => email.length > 0);
+
+    if (emails.length === 0) {
+      toast({
+        title: "Invalid Input",
+        description: "Please enter valid email addresses.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Basic email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    const invalidEmails = emails.filter(email => !emailRegex.test(email));
+    
+    if (invalidEmails.length > 0) {
+      toast({
+        title: "Invalid Email Addresses",
+        description: `Please check these email addresses: ${invalidEmails.join(', ')}`,
+        variant: "destructive",
+      });
+      return;
+    }
+
+    emailExportMutation.mutate({
+      toEmails: emails,
+      eventName: eventName
+    });
+  };
+
   if (teamsLoading || evaluatedRoundsLoading || leaderboardLoading) {
     return (
       <DashboardLayout>
@@ -382,17 +461,21 @@ const Leaderboard = () => {
     <DashboardLayout>
       <div className="space-y-6">
         {/* Header */}
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
             <h1 className="text-3xl font-bold mb-2">Leaderboard</h1>
             <p className="text-muted-foreground">
               Current rankings and team standings
             </p>
           </div>
-          <div className="flex gap-2">
-            <Button className="gradient-hero" onClick={exportLeaderboard}>
+          <div className="flex flex-col sm:flex-row gap-2">
+            <Button variant="outline" onClick={exportLeaderboard} className="w-full sm:w-auto">
               <Download className="h-4 w-4 mr-2" />
-              Export Rankings
+              Download CSV
+            </Button>
+            <Button className="gradient-hero" onClick={handleEmailExport} className="w-full sm:w-auto">
+              <Mail className="h-4 w-4 mr-2" />
+              Email CSV
             </Button>
           </div>
         </div>
@@ -544,8 +627,8 @@ const Leaderboard = () => {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="flex justify-between items-center">
-                <div className="flex items-center gap-2">
+              <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
+                <div className="flex flex-col sm:flex-row sm:items-center gap-2">
                   <Button 
                     variant="outline" 
                     size="sm"
@@ -558,12 +641,13 @@ const Leaderboard = () => {
                       });
                     }}
                     disabled={evaluatedRoundsLoading}
+                    className="w-full sm:w-auto"
                   >
                     <RefreshCw className={`h-4 w-4 mr-2 ${evaluatedRoundsLoading ? 'animate-spin' : ''}`} />
                     Refresh
                   </Button>
                   {evaluatedRoundsData?.evaluated_rounds?.some(round => round.is_frozen && !round.is_evaluated) && (
-                    <span className="text-sm text-green-600 font-medium">
+                    <span className="text-sm text-green-600 font-medium text-center sm:text-left">
                       {evaluatedRoundsData.evaluated_rounds.filter(round => round.is_frozen && !round.is_evaluated).length} frozen round(s) available
                     </span>
                   )}
@@ -571,7 +655,7 @@ const Leaderboard = () => {
                 <Button 
                   onClick={handleShortlistTeams}
                   disabled={shortlistTeamsMutation.isPending || !evaluatedRoundsData?.evaluated_rounds?.some(round => round.is_frozen && !round.is_evaluated)}
-                  className="bg-purple-600 hover:bg-purple-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
+                  className="bg-purple-600 hover:bg-purple-700 disabled:bg-gray-400 disabled:cursor-not-allowed w-full sm:w-auto"
                 >
                   <Trophy className="h-4 w-4 mr-2" />
                   {shortlistTeamsMutation.isPending ? "Shortlisting..." : "Shortlist Teams"}
@@ -600,15 +684,15 @@ const Leaderboard = () => {
           <CardContent>
             <div className="space-y-4">
               {leaderboard.map((team) => (
-                <div key={team.team_id} className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition-colors">
+                <div key={team.team_id} className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-4 border rounded-lg hover:bg-gray-50 transition-colors gap-3">
                   <div className="flex items-center gap-4">
-                    <div className="flex items-center justify-center w-8">
+                    <div className="flex items-center justify-center w-8 flex-shrink-0">
                       {getRankIcon(team.rank)}
                     </div>
-                    <div>
-                      <h3 className="font-semibold">{team.team_name}</h3>
-                      <p className="text-sm text-muted-foreground">{team.leader_name}</p>
-                      <div className="flex items-center gap-2 mt-1">
+                    <div className="min-w-0 flex-1">
+                      <h3 className="font-semibold truncate">{team.team_name}</h3>
+                      <p className="text-sm text-muted-foreground truncate">{team.leader_name}</p>
+                      <div className="flex items-center gap-2 mt-1 flex-wrap">
                         <Badge variant="outline" className={getStatusColor(team.status)}>
                           {formatStatus(team.status)}
                         </Badge>
@@ -618,7 +702,7 @@ const Leaderboard = () => {
                       </div>
                     </div>
                   </div>
-                  <div className="text-right">
+                  <div className="text-left sm:text-right flex-shrink-0">
                     <div className="text-2xl font-bold text-primary">
                       {team.final_score}
                     </div>
@@ -864,6 +948,64 @@ const Leaderboard = () => {
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+
+        {/* Email Export Modal */}
+        <Dialog open={isEmailModalOpen} onOpenChange={setIsEmailModalOpen}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Mail className="h-5 w-5" />
+                Email Leaderboard CSV
+              </DialogTitle>
+              <DialogDescription>
+                Send the leaderboard CSV file to multiple recipients via email
+              </DialogDescription>
+            </DialogHeader>
+            
+            <div className="space-y-4">
+              <div>
+                <Label htmlFor="event-name">Event Name</Label>
+                <Input
+                  id="event-name"
+                  value={eventName}
+                  onChange={(e) => setEventName(e.target.value)}
+                  placeholder="Crestora'25"
+                />
+              </div>
+              
+              <div>
+                <Label htmlFor="email-recipients">Recipients</Label>
+                <Input
+                  id="email-recipients"
+                  value={emailRecipients}
+                  onChange={(e) => setEmailRecipients(e.target.value)}
+                  placeholder="email1@example.com, email2@example.com"
+                />
+                <p className="text-sm text-muted-foreground mt-1">
+                  Separate multiple email addresses with commas or semicolons
+                </p>
+              </div>
+            </div>
+            
+            <div className="flex justify-end gap-2">
+              <Button 
+                variant="outline" 
+                onClick={() => setIsEmailModalOpen(false)}
+                disabled={emailExportMutation.isPending}
+              >
+                Cancel
+              </Button>
+              <Button 
+                onClick={handleSendEmail} 
+                disabled={emailExportMutation.isPending}
+                className="gradient-hero"
+              >
+                <Send className="h-4 w-4 mr-2" />
+                {emailExportMutation.isPending ? "Sending..." : "Send Email"}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
 
       </div>
     </DashboardLayout>
