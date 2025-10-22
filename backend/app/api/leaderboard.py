@@ -159,6 +159,13 @@ async def get_leaderboard(db: Session = Depends(get_db)):
             # Calculate weighted average
             weighted_average = total_weighted_score / total_weight
             
+            # Update current_round for active teams: current_round = rounds_completed + 1
+            if team.status == TeamStatus.ACTIVE:
+                new_current_round = rounds_completed + 1
+                if team.current_round != new_current_round:
+                    team.current_round = new_current_round
+                    # We'll commit this change at the end
+            
             # Normalize to 100: scale the weighted average to 100
             # Find the maximum possible weighted average across all teams for normalization
             final_score = weighted_average  # For now, keep as is since scores should already be normalized
@@ -194,6 +201,9 @@ async def get_leaderboard(db: Session = Depends(get_db)):
     # Add rank
     for i, team in enumerate(leaderboard):
         team["rank"] = i + 1
+    
+    # Commit any current_round updates
+    db.commit()
     
     return {"teams": leaderboard}
 

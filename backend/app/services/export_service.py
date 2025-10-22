@@ -152,6 +152,12 @@ class ExportService:
                 # Calculate weighted average
                 weighted_average = total_weighted_score / total_weight
                 
+                # Update current_round for active teams: current_round = rounds_completed + 1
+                if team.status == "ACTIVE":
+                    new_current_round = rounds_completed + 1
+                    if team.current_round != new_current_round:
+                        team.current_round = new_current_round
+                
                 leaderboard.append({
                     "rank": 0,  # Will be set after sorting
                     "team_id": team.team_id,
@@ -207,6 +213,9 @@ class ExportService:
                 team["current_round"],
                 team["status"]
             ])
+        
+        # Commit any current_round updates
+        self.db.commit()
         
         # Get CSV content
         csv_content = output.getvalue()
