@@ -387,50 +387,52 @@ const RoundsDashboard = () => {
           <CardContent>
             <div className="space-y-4">
               {filteredRounds.map((round) => (
-                <div key={round.id} className="border rounded-lg p-4 hover:bg-muted/50 transition-colors">
-                  <div className="flex items-start justify-between">
+                <div key={round.id} className="border rounded-lg p-3 sm:p-4 hover:bg-muted/50 transition-colors">
+                  <div className="flex flex-col gap-4">
                     <div className="space-y-2 flex-1">
-                      <div className="flex items-center gap-2">
-                        <h3 className="font-semibold text-lg">{round.name}</h3>
-                        {round.is_frozen && (
-                          <Badge variant="secondary" className="bg-blue-100 text-blue-800">
-                            Frozen
-                          </Badge>
-                        )}
-                        {round.is_evaluated && (
-                          <Badge variant="secondary" className="bg-green-100 text-green-800">
-                            Evaluated
-                          </Badge>
-                        )}
+                      <div className="flex flex-col gap-2">
+                        <h3 className="font-semibold text-base sm:text-lg break-words">{round.name}</h3>
+                        <div className="flex flex-wrap gap-2">
+                          {round.is_frozen && (
+                            <Badge variant="secondary" className="bg-blue-100 text-blue-800 text-xs">
+                              Frozen
+                            </Badge>
+                          )}
+                          {round.is_evaluated && (
+                            <Badge variant="secondary" className="bg-green-100 text-green-800 text-xs">
+                              Evaluated
+                            </Badge>
+                          )}
+                        </div>
                       </div>
                       
-                      <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                      <div className="flex flex-col gap-2 text-sm text-muted-foreground">
                         <div className="flex items-center gap-1">
-                          <Hash className="h-4 w-4" />
-                          Round {round.round_number}
+                          <Hash className="h-4 w-4 flex-shrink-0" />
+                          <span>Round {round.round_number}</span>
                         </div>
                         <div className="flex items-center gap-1">
-                          <Users className="h-4 w-4" />
-                          {round.club || 'No club assigned'}
+                          <Users className="h-4 w-4 flex-shrink-0" />
+                          <span className="break-words">{round.club || 'No club assigned'}</span>
                         </div>
                         <div className="flex items-center gap-1">
-                          {round.mode === 'online' ? <Globe className="h-4 w-4" /> : <Building className="h-4 w-4" />}
-                          {formatMode(round.mode)}
+                          {round.mode === 'online' ? <Globe className="h-4 w-4 flex-shrink-0" /> : <Building className="h-4 w-4 flex-shrink-0" />}
+                          <span>{formatMode(round.mode)}</span>
                         </div>
                         {round.date && (
                           <div className="flex items-center gap-1">
-                            <Calendar className="h-4 w-4" />
-                            {new Date(round.date).toLocaleDateString()}
+                            <Calendar className="h-4 w-4 flex-shrink-0" />
+                            <span>{new Date(round.date).toLocaleDateString()}</span>
                           </div>
                         )}
                       </div>
 
                       <div className="text-sm">
-                        <span className="font-medium">Event:</span> {round.event_name} ({round.event_type})
+                        <span className="font-medium">Event:</span> <span className="break-words">{round.event_name} ({round.event_type})</span>
                       </div>
 
                       {round.description && (
-                        <p className="text-sm text-muted-foreground mt-2">
+                        <p className="text-sm text-muted-foreground mt-2 break-words">
                           {round.description}
                         </p>
                       )}
@@ -439,17 +441,17 @@ const RoundsDashboard = () => {
                       {round.is_frozen && (
                         <div className="mt-3 p-3 bg-blue-50 rounded-lg">
                           <h4 className="font-medium text-sm mb-2">Evaluation Results:</h4>
-                          <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
-                            <div>
+                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+                            <div className="break-words">
                               <span className="font-medium">Max Score:</span> {round.max_score?.toFixed(1) || 'N/A'}
                             </div>
-                            <div>
+                            <div className="break-words">
                               <span className="font-medium">Min Score:</span> {round.min_score?.toFixed(1) || 'N/A'}
                             </div>
-                            <div>
+                            <div className="break-words">
                               <span className="font-medium">Avg Score:</span> {round.avg_score?.toFixed(1) || 'N/A'}
                             </div>
-                            <div>
+                            <div className="break-words">
                               <span className="font-medium">Teams:</span> {round.participated_count || 0}
                             </div>
                           </div>
@@ -458,23 +460,25 @@ const RoundsDashboard = () => {
                     </div>
                     
                     {/* Evaluate/View Button */}
-                    <div className="ml-4">
+                    <div className="flex justify-end sm:justify-start">
                       {round.is_frozen ? (
                         <Button
                           variant="outline"
                           onClick={() => handleEvaluateRound(round.id)}
-                          className="flex items-center gap-2"
+                          className="flex items-center gap-2 w-full sm:w-auto"
                         >
                           <Eye className="h-4 w-4" />
-                          View Evaluation
+                          <span className="hidden xs:inline">View Evaluation</span>
+                          <span className="xs:hidden">View</span>
                         </Button>
                       ) : (
                         <Button
                           onClick={() => handleEvaluateRound(round.id)}
-                          className="flex items-center gap-2 gradient-hero"
+                          className="flex items-center gap-2 gradient-hero w-full sm:w-auto"
                         >
                           <Play className="h-4 w-4" />
-                          Evaluate
+                          <span className="hidden xs:inline">Evaluate</span>
+                          <span className="xs:hidden">Start</span>
                         </Button>
                       )}
                     </div>

@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { apiService } from '../services/api';
 
 interface User {
   id: number;
@@ -54,32 +55,19 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const verifyToken = async (token: string) => {
     try {
-      const response = await fetch('http://localhost:8000/api/auth/me', {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
+      const data = await apiService.getCurrentUser(token);
+      console.log('AuthContext: User data received:', data);
+      setUser({
+        id: data.id,
+        username: data.username,
+        email: data.email,
+        full_name: data.full_name,
+        role: data.role.toLowerCase(),
+        club: data.club,
+        is_active: data.is_active,
+        created_at: data.created_at,
       });
-
-      if (response.ok) {
-        const data = await response.json();
-        console.log('AuthContext: User data received:', data);
-        setUser({
-          id: data.id,
-          username: data.username,
-          email: data.email,
-          full_name: data.full_name,
-          role: data.role.toLowerCase(),
-          club: data.club,
-          is_active: data.is_active,
-          created_at: data.created_at,
-        });
-        console.log('AuthContext: User set with role:', data.role.toLowerCase());
-      } else {
-        // Token is invalid
-        localStorage.removeItem('auth_token');
-        setToken(null);
-        setUser(null);
-      }
+      console.log('AuthContext: User set with role:', data.role.toLowerCase());
     } catch (error) {
       console.error('Token verification failed:', error);
       localStorage.removeItem('auth_token');
@@ -92,27 +80,19 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const getCurrentUser = async (token: string) => {
     try {
-      const response = await fetch('http://localhost:8000/api/auth/me', {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
+      const userData = await apiService.getCurrentUser(token);
+      console.log('getCurrentUser: User data received:', userData);
+      setUser({
+        id: userData.id,
+        username: userData.username,
+        email: userData.email,
+        full_name: userData.full_name,
+        role: userData.role.toLowerCase(),
+        club: userData.club,
+        is_active: userData.is_active,
+        created_at: userData.created_at,
       });
-
-      if (response.ok) {
-        const userData = await response.json();
-        console.log('getCurrentUser: User data received:', userData);
-        setUser({
-          id: userData.id,
-          username: userData.username,
-          email: userData.email,
-          full_name: userData.full_name,
-          role: userData.role.toLowerCase(),
-          club: userData.club,
-          is_active: userData.is_active,
-          created_at: userData.created_at,
-        });
-        console.log('getCurrentUser: User set with role:', userData.role.toLowerCase());
-      }
+      console.log('getCurrentUser: User set with role:', userData.role.toLowerCase());
     } catch (error) {
       console.error('Failed to get user info:', error);
     }
@@ -120,30 +100,17 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const login = async (username: string, password: string): Promise<boolean> => {
     try {
-      const formData = new FormData();
-      formData.append('username', username);
-      formData.append('password', password);
-
-      const response = await fetch('http://localhost:8000/api/auth/login', {
-        method: 'POST',
-        body: formData,
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        const { access_token } = data;
-        
-        console.log('Login successful, token received');
-        setToken(access_token);
-        localStorage.setItem('auth_token', access_token);
-        
-        // Get user info
-        await getCurrentUser(access_token);
-        
-        return true;
-      } else {
-        return false;
-      }
+      const data = await apiService.login(username, password);
+      const { access_token } = data;
+      
+      console.log('Login successful, token received');
+      setToken(access_token);
+      localStorage.setItem('auth_token', access_token);
+      
+      // Get user info
+      await getCurrentUser(access_token);
+      
+      return true;
     } catch (error) {
       console.error('Login failed:', error);
       return false;

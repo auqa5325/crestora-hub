@@ -118,16 +118,6 @@ const Login = () => {
               </Button>
             </form>
 
-            <div className="mt-6 text-center">
-              <p className="text-sm text-muted-foreground">
-                Demo accounts:
-              </p>
-              <div className="mt-2 space-y-1 text-xs text-muted-foreground">
-                <p><strong>Admin:</strong> admin / admin123</p>
-                <p><strong>Judge:</strong> judge / judge123</p>
-                <p><strong>Team:</strong> team / team123</p>
-              </div>
-            </div>
           </CardContent>
         </Card>
 
