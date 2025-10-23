@@ -361,38 +361,53 @@ async def get_public_leaderboard(
     """
     Get public leaderboard - PUBLIC ACCESS (No authentication required)
     
-    Returns a leaderboard of teams ranked by their overall scores.
+    Returns a leaderboard of teams ranked by their latest round scores from team_scores table.
     This endpoint is publicly accessible and doesn't require authentication.
     
     Parameters:
     - limit: Number of top teams to return (1-100)
     
     Returns:
-    - Ranked list of teams with their overall scores
+    - Ranked list of teams with their latest round scores and percentiles
     """
+    # Get all active teams with their latest scores from team_scores table
+    team_scores = []
+    
     # Get all active teams
     teams = db.query(Team).filter(Team.status == TeamStatus.ACTIVE).all()
     
-    # Calculate scores for all teams
-    team_scores = []
     for team in teams:
-        overall_score = calculate_overall_score(team.team_id, db)
-        if overall_score is not None:
+        # Get the latest score for this team from team_scores table
+        latest_score = db.query(TeamScore).filter(
+            TeamScore.team_id == team.team_id
+        ).order_by(TeamScore.created_at.desc()).first()
+        
+        if latest_score:
+            print(f"DEBUG: Team {team.team_name} - Latest score: {latest_score.score}, Round: {latest_score.round_id}")
             team_scores.append({
                 "team_id": team.team_id,
                 "team_name": team.team_name,
                 "leader_name": team.leader_name,
                 "current_round": team.current_round,
-                "overall_score": round(overall_score, 2),
+                "score": round(latest_score.score, 2),  # Raw score from team_scores table
+                "raw_total_score": round(latest_score.raw_total_score, 2),
+                "round_id": latest_score.round_id,
+                "is_normalized": latest_score.is_normalized,
                 "status": team.status
             })
     
-    # Sort by overall score (descending)
-    team_scores.sort(key=lambda x: x["overall_score"], reverse=True)
+    # Sort by score (descending)
+    team_scores.sort(key=lambda x: x["score"], reverse=True)
     
-    # Add rank
-    for i, team in enumerate(team_scores[:limit]):
-        team["rank"] = i + 1
+    # Calculate percentile scores
+    if team_scores:
+        total_teams = len(team_scores)
+        for i, team in enumerate(team_scores):
+            # Percentile = (number of teams below this team / total teams) * 100
+            # Since we're sorted in descending order, teams below = total_teams - rank
+            percentile = ((total_teams - i) / total_teams) * 100
+            team["percentile"] = round(percentile, 1)
+            team["rank"] = i + 1
     
     return {
         "leaderboard": team_scores[:limit],

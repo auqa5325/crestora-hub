@@ -216,6 +216,17 @@ async def export_round_data_via_email(
             detail=f"Failed to export and send round data: {str(e)}"
         )
 
+@router.post("/rounds/{round_id}/toggle-elimination")
+async def toggle_elimination_setting(
+    round_id: int,
+    eliminate_absentees: bool,
+    db: Session = Depends(get_db),
+    current_user = Depends(require_pda_role())
+):
+    """Toggle elimination setting and reactivate eliminated teams if needed (PDA only)"""
+    round_service = RoundService(db)
+    return round_service.toggle_elimination_setting(round_id, eliminate_absentees)
+
 @router.get("/", response_model=List[EventWithRounds])
 async def get_events(
     skip: int = Query(0, ge=0),

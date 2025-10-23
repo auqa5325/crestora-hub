@@ -527,3 +527,45 @@ class RoundService:
             return None
         
         return total_weighted_score / total_weight
+
+    def toggle_elimination_setting(self, round_id: int, eliminate_absentees: bool) -> Dict[str, Any]:
+        """Toggle elimination setting and reactivate eliminated teams if needed"""
+        # Validate round exists
+        round_obj = self.db.query(UnifiedEvent).filter(UnifiedEvent.id == round_id).first()
+        if not round_obj:
+            raise ValueError("Round not found")
+        
+        # If switching from eliminate=True to eliminate=False, reactivate eliminated teams
+        if not eliminate_absentees:
+            # Find teams that were eliminated due to being absent in this round
+            eliminated_teams = self.db.query(Team).join(TeamScore).filter(
+                Team.status == TeamStatus.ELIMINATED,
+                TeamScore.round_id == round_id,
+                TeamScore.is_present == False
+            ).all()
+            
+            reactivated_count = 0
+            for team in eliminated_teams:
+                # Only reactivate if they were eliminated due to absence in this specific round
+                team_score = self.db.query(TeamScore).filter(
+                    TeamScore.team_id == team.team_id,
+                    TeamScore.round_id == round_id
+                ).first()
+                
+                if team_score and not team_score.is_present:
+                    team.status = TeamStatus.ACTIVE
+                    reactivated_count += 1
+            
+            self.db.commit()
+            
+            return {
+                "message": f"Elimination setting updated. {reactivated_count} teams reactivated.",
+                "eliminate_absentees": eliminate_absentees,
+                "reactivated_teams": reactivated_count
+            }
+        else:
+            return {
+                "message": "Elimination setting updated.",
+                "eliminate_absentees": eliminate_absentees,
+                "reactivated_teams": 0
+            }
