@@ -4,7 +4,7 @@ from fastapi.responses import JSONResponse
 import uvicorn
 
 # Import API routers
-from app.api import teams_simple, events, dashboard, teams, team_scores, leaderboard, rounds, auth, rolling_results
+from app.api import teams_simple, events, dashboard, teams, team_scores, leaderboard, rounds, auth, rolling_results, public_teams
 
 app = FastAPI(
     title="Crestora'25 API",
@@ -50,6 +50,7 @@ async def health_check():
     }
 
 # Include API routers
+app.include_router(public_teams.router)  # Public APIs (no authentication required)
 app.include_router(auth.router)
 app.include_router(teams_simple.router)
 app.include_router(events.router)
