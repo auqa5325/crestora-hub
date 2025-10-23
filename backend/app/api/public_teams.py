@@ -361,58 +361,124 @@ async def get_public_leaderboard(
     """
     Get public leaderboard - PUBLIC ACCESS (No authentication required)
     
-    Returns a leaderboard of teams ranked by their latest round scores from team_scores table.
+    Returns a leaderboard of teams ranked by their weighted average across all evaluated and frozen rounds.
+    Uses the same calculation logic as the main leaderboard for consistency.
     This endpoint is publicly accessible and doesn't require authentication.
     
     Parameters:
     - limit: Number of top teams to return (1-100)
     
     Returns:
-    - Ranked list of teams with their latest round scores and percentiles
+    - Ranked list of teams with their weighted averages and normalized scores
     """
-    # Get all active teams with their latest scores from team_scores table
-    team_scores = []
+    # Get all evaluated rounds
+    evaluated_rounds = db.query(UnifiedEvent).filter(
+        UnifiedEvent.is_evaluated == True,
+        UnifiedEvent.round_number > 0
+    ).all()
     
-    # Get all active teams
-    teams = db.query(Team).filter(Team.status == TeamStatus.ACTIVE).all()
+    # Also include frozen rounds that are not yet evaluated (current round)
+    frozen_rounds = db.query(UnifiedEvent).filter(
+        UnifiedEvent.is_frozen == True,
+        UnifiedEvent.is_evaluated == False,
+        UnifiedEvent.round_number > 0
+    ).all()
     
-    for team in teams:
-        # Get the latest score for this team from team_scores table
-        latest_score = db.query(TeamScore).filter(
-            TeamScore.team_id == team.team_id
-        ).order_by(TeamScore.created_at.desc()).first()
+    # Combine both sets
+    all_rounds = evaluated_rounds + frozen_rounds
+    
+    if not all_rounds:
+        return {
+            "leaderboard": [],
+            "total_teams": 0,
+            "displayed_teams": 0,
+            "message": "No evaluated or frozen rounds found"
+        }
+    
+    # Get all teams (including eliminated and completed)
+    all_teams = db.query(Team).all()
+    
+    leaderboard = []
+    
+    # Create a set of all round IDs for faster lookup
+    all_round_ids = {round_data.id for round_data in all_rounds}
+    
+    # Pre-fetch all weights to avoid repeated queries
+    weights_cache = {}
+    if all_round_ids:
+        weights = db.query(RoundWeight).filter(RoundWeight.round_id.in_(all_round_ids)).all()
+        for weight in weights:
+            weights_cache[weight.round_id] = weight.weight_percentage
+    
+    for team in all_teams:
+        # Get all team scores for this team across all rounds
+        team_scores = db.query(TeamScore).filter(
+            TeamScore.team_id == team.team_id,
+            TeamScore.round_id.in_(all_round_ids)
+        ).all()
         
-        if latest_score:
-            print(f"DEBUG: Team {team.team_name} - Latest score: {latest_score.score}, Round: {latest_score.round_id}")
-            team_scores.append({
+        # Create a dictionary for faster lookup
+        team_scores_dict = {score.round_id: score.score for score in team_scores}
+        
+        # Calculate weighted average (including 0 scores for missing rounds)
+        total_weighted_score = 0.0
+        total_weight = 0.0
+        rounds_completed = 0
+        
+        for round_id in all_round_ids:
+            # Use cached weight
+            weight_percentage = weights_cache.get(round_id, 100.0)
+            
+            # Get score for this round (0 if not found)
+            round_score = team_scores_dict.get(round_id, 0.0)
+            
+            weight_value = weight_percentage / 100.0  # Convert to decimal
+            total_weighted_score += round_score * weight_value
+            total_weight += weight_value
+            rounds_completed += 1
+        
+        if total_weight > 0:
+            # Calculate weighted average
+            weighted_average = total_weighted_score / total_weight
+            
+            leaderboard.append({
                 "team_id": team.team_id,
                 "team_name": team.team_name,
                 "leader_name": team.leader_name,
+                "weighted_average": round(weighted_average, 2),
+                "rounds_completed": rounds_completed,
                 "current_round": team.current_round,
-                "score": round(latest_score.score, 2),  # Raw score from team_scores table
-                "raw_total_score": round(latest_score.raw_total_score, 2),
-                "round_id": latest_score.round_id,
-                "is_normalized": latest_score.is_normalized,
                 "status": team.status
             })
     
-    # Sort by score (descending)
-    team_scores.sort(key=lambda x: x["score"], reverse=True)
+    # Normalize all scores to 100 and add both scores (same as main leaderboard)
+    if leaderboard:
+        # Find the maximum weighted average
+        max_score = max(team["weighted_average"] for team in leaderboard)
+        
+        # Add both weighted average and normalized score
+        for team in leaderboard:
+            if max_score > 0:
+                normalized_score = (team["weighted_average"] / max_score) * 100
+                team["normalized_score"] = round(normalized_score, 2)
+                team["percentile"] = round(normalized_score, 1)  # Keep for compatibility
+                team["final_score"] = round(normalized_score, 2)  # Keep for compatibility
+            else:
+                team["normalized_score"] = 0.0
+                team["percentile"] = 0.0
+                team["final_score"] = 0.0
     
-    # Calculate percentile scores
-    if team_scores:
-        total_teams = len(team_scores)
-        for i, team in enumerate(team_scores):
-            # Percentile = (number of teams below this team / total teams) * 100
-            # Since we're sorted in descending order, teams below = total_teams - rank
-            percentile = ((total_teams - i) / total_teams) * 100
-            team["percentile"] = round(percentile, 1)
-            team["rank"] = i + 1
+    # Sort by final score (descending)
+    leaderboard.sort(key=lambda x: x["final_score"], reverse=True)
+    
+    # Add rank
+    for i, team in enumerate(leaderboard):
+        team["rank"] = i + 1
     
     return {
-        "leaderboard": team_scores[:limit],
-        "total_teams": len(team_scores),
-        "displayed_teams": min(limit, len(team_scores))
+        "leaderboard": leaderboard[:limit],
+        "total_teams": len(leaderboard),
+        "displayed_teams": min(limit, len(leaderboard))
     }
 
 @router.get("/health")
