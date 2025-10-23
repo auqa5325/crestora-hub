@@ -390,6 +390,19 @@ async def get_public_leaderboard(
     # Sort by overall score (descending)
     team_scores.sort(key=lambda x: x["overall_score"], reverse=True)
     
+    # Normalize scores to 100 scale
+    if team_scores:
+        # Find the maximum overall score
+        max_score = max(team["overall_score"] for team in team_scores)
+        
+        # Add normalized score to each team
+        for team in team_scores:
+            if max_score > 0:
+                normalized_score = (team["overall_score"] / max_score) * 100
+                team["normalized_score"] = round(normalized_score, 2)
+            else:
+                team["normalized_score"] = 0.0
+    
     # Add rank
     for i, team in enumerate(team_scores[:limit]):
         team["rank"] = i + 1
