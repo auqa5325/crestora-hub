@@ -365,6 +365,7 @@ async def shortlist_teams_by_overall_score(
         # Calculate weighted average (including 0 scores for missing rounds)
         total_weighted_score = 0.0
         total_weight = 0.0
+        rounds_completed = 0
         
         for round_id in all_round_ids:
             # Use cached weight
@@ -376,6 +377,7 @@ async def shortlist_teams_by_overall_score(
             weight_value = weight_percentage / 100.0  # Convert to decimal
             total_weighted_score += round_score * weight_value
             total_weight += weight_value
+            rounds_completed += 1
         
         if total_weight > 0:
             # Calculate weighted average
@@ -384,7 +386,8 @@ async def shortlist_teams_by_overall_score(
             all_teams_with_scores.append({
                 'team_id': team.team_id,
                 'team_name': team.team_name,
-                'overall_score': weighted_average  # Use weighted average for shortlisting
+                'overall_score': weighted_average,  # Use weighted average for shortlisting
+                'rounds_completed': rounds_completed  # Track rounds completed for current_round calculation
             })
     
     # Sort by overall score (descending)
@@ -420,7 +423,7 @@ async def shortlist_teams_by_overall_score(
         team = db.query(Team).filter(Team.team_id == team_data['team_id']).first()
         if team:
             team.status = TeamStatus.ACTIVE  # Keep as active (shortlisted)
-            team.current_round += 1  # Increment current round for shortlisted teams
+            team.current_round = team_data['rounds_completed'] + 1  # Set current round to rounds_completed + 1
     
     for team_data in eliminated_teams:
         team = db.query(Team).filter(Team.team_id == team_data['team_id']).first()
