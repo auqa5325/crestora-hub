@@ -569,3 +569,48 @@ class RoundService:
                 "eliminate_absentees": eliminate_absentees,
                 "reactivated_teams": 0
             }
+
+    def handle_absentees_after_freezing(self, round_id: int, eliminate_absentees: bool) -> dict:
+        """Handle absent teams after a round has been frozen (PDA only)"""
+        round_obj = self.db.query(UnifiedEvent).filter(UnifiedEvent.id == round_id).first()
+        if not round_obj:
+            raise ValueError("Round not found")
+        
+        if not round_obj.is_frozen:
+            raise ValueError("Round must be frozen before handling absentees")
+        
+        # Get all team scores for this round where teams are marked as absent
+        absent_team_scores = self.db.query(TeamScore).filter(
+            and_(
+                TeamScore.round_id == round_id,
+                TeamScore.is_present == False
+            )
+        ).all()
+        
+        eliminated_count = 0
+        reactivated_count = 0
+        
+        for team_score in absent_team_scores:
+            team = self.db.query(Team).filter(Team.team_id == team_score.team_id).first()
+            if not team:
+                continue
+            
+            if eliminate_absentees:
+                # Eliminate the team if not already eliminated
+                if team.status != TeamStatus.ELIMINATED:
+                    team.status = TeamStatus.ELIMINATED
+                    eliminated_count += 1
+            else:
+                # Reactivate the team if it was eliminated due to absence
+                if team.status == TeamStatus.ELIMINATED:
+                    team.status = TeamStatus.ACTIVE
+                    reactivated_count += 1
+        
+        self.db.commit()
+        
+        return {
+            "message": f"Absent teams processed successfully. {eliminated_count} teams eliminated, {reactivated_count} teams reactivated.",
+            "eliminated_count": eliminated_count,
+            "reactivated_count": reactivated_count,
+            "eliminate_absentees": eliminate_absentees
+        }

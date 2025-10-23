@@ -26,7 +26,8 @@ import {
   Filter,
   Search,
   Mail,
-  Send
+  Send,
+  User
 } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiService, Team, Event, TeamScore, RoundStats } from "@/services/api";
@@ -77,6 +78,10 @@ const RoundEvaluation = () => {
   const [isEmailModalOpen, setIsEmailModalOpen] = useState(false);
   const [emailRecipients, setEmailRecipients] = useState<string>('');
   const [eventName, setEventName] = useState<string>("Crestora'25");
+
+  // Elimination control state
+  const [eliminateAbsentees, setEliminateAbsentees] = useState<boolean>(true);
+  const [isEliminationModalOpen, setIsEliminationModalOpen] = useState(false);
 
 
   // Export sorting state
@@ -222,6 +227,31 @@ const RoundEvaluation = () => {
       const errorMessage = error?.response?.data?.detail || error?.message || "Failed to send email. Please try again.";
       toast({
         title: "Email Failed",
+        description: errorMessage,
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Handle absentees mutation
+  const handleAbsenteesMutation = useMutation({
+    mutationFn: (eliminateAbsentees: boolean) =>
+      apiService.handleAbsentees(selectedRoundId!, eliminateAbsentees),
+    onSuccess: (data) => {
+      toast({
+        title: "Absentees Handled",
+        description: data.message || "Absent teams have been processed successfully.",
+      });
+      setIsEliminationModalOpen(false);
+      // Refresh data to show updated team statuses
+      queryClient.invalidateQueries({ queryKey: ['teams'] });
+      queryClient.invalidateQueries({ queryKey: ['round-evaluations', selectedRoundId] });
+    },
+    onError: (error: any) => {
+      console.error('Handle absentees error:', error);
+      const errorMessage = error?.response?.data?.detail || error?.message || "Failed to handle absentees. Please try again.";
+      toast({
+        title: "Error",
         description: errorMessage,
         variant: "destructive",
       });
@@ -390,7 +420,7 @@ const RoundEvaluation = () => {
         criteriaScores: evaluation.criteria_scores,
         isAlreadyEvaluated: evaluation.is_evaluated,
         isPresent: evaluation.is_present,
-        eliminateAbsentees: true
+        eliminateAbsentees: false  // Don't eliminate during evaluation, only after freezing
       });
     }
   };
@@ -444,6 +474,11 @@ const RoundEvaluation = () => {
   // Freeze round
   const handleFreezeRound = () => {
     freezeRoundMutation.mutate();
+  };
+
+  // Handle absentees
+  const handleAbsentees = () => {
+    handleAbsenteesMutation.mutate(eliminateAbsentees);
   };
 
 
@@ -761,9 +796,22 @@ const RoundEvaluation = () => {
         {stats?.is_frozen && (
           <Card className="bg-blue-50 border-blue-200">
             <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-blue-800">
-                <Lock className="h-5 w-5" />
-                Round Frozen
+              <CardTitle className="flex items-center justify-between text-blue-800">
+                <div className="flex items-center gap-2">
+                  <Lock className="h-5 w-5" />
+                  Round Frozen
+                </div>
+                {user?.role === 'admin' && (
+                  <Button
+                    onClick={() => setIsEliminationModalOpen(true)}
+                    variant="outline"
+                    size="sm"
+                    className="border-orange-200 hover:bg-orange-50 text-orange-700"
+                  >
+                    <User className="h-4 w-4 mr-2" />
+                    Handle Absentees
+                  </Button>
+                )}
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -1292,6 +1340,84 @@ const RoundEvaluation = () => {
           </AlertDialogContent>
         </AlertDialog>
 
+        {/* Absentee Handling Modal */}
+        <Dialog open={isEliminationModalOpen} onOpenChange={setIsEliminationModalOpen}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <User className="h-5 w-5" />
+                Handle Absent Teams
+              </DialogTitle>
+              <DialogDescription>
+                Choose how to handle teams marked as absent in this frozen round
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="space-y-3">
+                <div className="flex items-center space-x-3 p-3 rounded-lg border">
+                  <input
+                    type="radio"
+                    id="eliminate-absentees"
+                    name="elimination-option"
+                    checked={eliminateAbsentees}
+                    onChange={() => setEliminateAbsentees(true)}
+                    className="h-4 w-4 text-red-600 focus:ring-red-500"
+                  />
+                  <div className="flex-1">
+                    <label htmlFor="eliminate-absentees" className="text-sm font-medium cursor-pointer">
+                      Eliminate Absent Teams
+                    </label>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Teams marked as absent will be eliminated (status: ELIMINATED)
+                    </p>
+                  </div>
+                </div>
+                
+                <div className="flex items-center space-x-3 p-3 rounded-lg border">
+                  <input
+                    type="radio"
+                    id="dont-eliminate"
+                    name="elimination-option"
+                    checked={!eliminateAbsentees}
+                    onChange={() => setEliminateAbsentees(false)}
+                    className="h-4 w-4 text-green-600 focus:ring-green-500"
+                  />
+                  <div className="flex-1">
+                    <label htmlFor="dont-eliminate" className="text-sm font-medium cursor-pointer">
+                      Keep Absent Teams Active
+                    </label>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Teams marked as absent will keep their current status (score: 0, but not eliminated)
+                    </p>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="bg-blue-50 p-3 rounded-lg">
+                <p className="text-xs text-blue-800">
+                  <strong>Note:</strong> This setting affects how absent teams are handled in the leaderboard. 
+                  Current setting: <strong>{eliminateAbsentees ? 'Eliminate Absent Teams' : 'Keep Absent Teams Active'}</strong>
+                </p>
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 pt-4">
+              <Button 
+                variant="outline" 
+                onClick={() => setIsEliminationModalOpen(false)}
+                disabled={handleAbsenteesMutation.isPending}
+              >
+                Cancel
+              </Button>
+              <Button 
+                onClick={handleAbsentees}
+                disabled={handleAbsenteesMutation.isPending}
+                className="bg-orange-600 hover:bg-orange-700"
+              >
+                {handleAbsenteesMutation.isPending ? "Processing..." : "Apply Changes"}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
 
         {/* Email Export Modal */}
         <Dialog open={isEmailModalOpen} onOpenChange={setIsEmailModalOpen}>

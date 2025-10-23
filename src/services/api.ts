@@ -510,6 +510,15 @@ class ApiService {
     });
   }
 
+  async handleAbsentees(roundId: number, eliminateAbsentees: boolean): Promise<any> {
+    return this.request<any>(`/rounds/rounds/${roundId}/handle-absentees`, {
+      method: 'POST',
+      body: JSON.stringify({
+        eliminate_absentees: eliminateAbsentees
+      }),
+    });
+  }
+
 
   async getRoundStats(roundId: number): Promise<RoundStats> {
     return this.request<RoundStats>(`/rounds/rounds/${roundId}/stats`);
