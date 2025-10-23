@@ -26,8 +26,7 @@ import {
   Filter,
   Search,
   Mail,
-  Send,
-  User
+  Send
 } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiService, Team, Event, TeamScore, RoundStats } from "@/services/api";
@@ -79,9 +78,6 @@ const RoundEvaluation = () => {
   const [emailRecipients, setEmailRecipients] = useState<string>('');
   const [eventName, setEventName] = useState<string>("Crestora'25");
 
-  // Elimination control state
-  const [eliminateAbsentees, setEliminateAbsentees] = useState<boolean>(true);
-  const [isEliminationModalOpen, setIsEliminationModalOpen] = useState(false);
 
   // Export sorting state
   const [exportSortBy, setExportSortBy] = useState<string>('team_name');
@@ -394,7 +390,7 @@ const RoundEvaluation = () => {
         criteriaScores: evaluation.criteria_scores,
         isAlreadyEvaluated: evaluation.is_evaluated,
         isPresent: evaluation.is_present,
-        eliminateAbsentees: eliminateAbsentees
+        eliminateAbsentees: true
       });
     }
   };
@@ -678,24 +674,6 @@ const RoundEvaluation = () => {
             </div>
             
             <div className="flex flex-wrap gap-2">
-              {/* Elimination Control Button - PDA Only */}
-              {user?.role === 'admin' && (
-                <Button
-                  onClick={() => setIsEliminationModalOpen(true)}
-                  variant="outline"
-                  className="flex-1 sm:flex-none border-orange-200 hover:bg-orange-50"
-                  size="sm"
-                >
-                  <User className="h-4 w-4 mr-2" />
-                  <span className="hidden xs:inline">
-                    {eliminateAbsentees ? 'Eliminate Absentees' : "Don't Eliminate"}
-                  </span>
-                  <span className="xs:hidden">
-                    {eliminateAbsentees ? 'Eliminate' : "Don't Eliminate"}
-                  </span>
-                </Button>
-              )}
-              
               {/* Freeze Round Button */}
               {!stats?.is_frozen && (user?.role === 'admin' || user?.role === 'clubs') && (
                 <Button
@@ -825,24 +803,6 @@ const RoundEvaluation = () => {
           </Card>
         )}
 
-        {/* Elimination Control Status - PDA Only */}
-        {user?.role === 'admin' && (
-          <Card className="bg-orange-50 border-orange-200">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-orange-800">
-                <User className="h-5 w-5" />
-                Absent Team Handling
-              </CardTitle>
-              <CardDescription className="text-orange-700">
-                Current setting: <strong>{eliminateAbsentees ? 'Eliminate Absentees' : "Don't Eliminate"}</strong>
-                {eliminateAbsentees ? 
-                  ' - Teams marked as absent will be eliminated (status: ELIMINATED)' : 
-                  ' - Teams marked as absent will keep their current status (score: 0)'
-                }
-              </CardDescription>
-            </CardHeader>
-          </Card>
-        )}
 
         {/* Teams List - Unified when frozen, split when active */}
         {stats?.is_frozen ? (
@@ -924,6 +884,17 @@ const RoundEvaluation = () => {
                                   ) : teamData.status === 'ACTIVE' ? (
                                     <Badge variant="default" className="text-xs bg-green-100 text-green-800 flex-shrink-0">ACTIVE</Badge>
                                   ) : null}
+                                  {(() => {
+                                    const evaluation = teamEvaluations.find(evalItem => evalItem.team_id === teamData.team_id);
+                                    if (evaluation) {
+                                      return evaluation.is_present ? (
+                                        <Badge variant="default" className="text-xs bg-green-100 text-green-800 flex-shrink-0">PRESENT</Badge>
+                                      ) : (
+                                        <Badge variant="destructive" className="text-xs flex-shrink-0">ABSENT</Badge>
+                                      );
+                                    }
+                                    return null;
+                                  })()}
                         </div>
                               </div>
                             </div>
@@ -1321,73 +1292,6 @@ const RoundEvaluation = () => {
           </AlertDialogContent>
         </AlertDialog>
 
-        {/* Elimination Control Modal */}
-        <Dialog open={isEliminationModalOpen} onOpenChange={setIsEliminationModalOpen}>
-          <DialogContent className="sm:max-w-md">
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-2">
-                <User className="h-5 w-5" />
-                Absent Team Elimination Control
-              </DialogTitle>
-              <DialogDescription>
-                Choose how to handle teams marked as absent during evaluation
-              </DialogDescription>
-            </DialogHeader>
-            <div className="space-y-4">
-              <div className="space-y-3">
-                <div className="flex items-center space-x-3 p-3 rounded-lg border">
-                  <input
-                    type="radio"
-                    id="eliminate-absentees"
-                    name="elimination-option"
-                    checked={eliminateAbsentees}
-                    onChange={() => setEliminateAbsentees(true)}
-                    className="h-4 w-4 text-red-600 focus:ring-red-500"
-                  />
-                  <div className="flex-1">
-                    <label htmlFor="eliminate-absentees" className="text-sm font-medium cursor-pointer">
-                      Eliminate Absentees
-                    </label>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Teams marked as absent will be eliminated (status: ELIMINATED, score: 0)
-                    </p>
-                  </div>
-                </div>
-                
-                <div className="flex items-center space-x-3 p-3 rounded-lg border">
-                  <input
-                    type="radio"
-                    id="dont-eliminate"
-                    name="elimination-option"
-                    checked={!eliminateAbsentees}
-                    onChange={() => setEliminateAbsentees(false)}
-                    className="h-4 w-4 text-green-600 focus:ring-green-500"
-                  />
-                  <div className="flex-1">
-                    <label htmlFor="dont-eliminate" className="text-sm font-medium cursor-pointer">
-                      Don't Eliminate
-                    </label>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Teams marked as absent will keep their current status (score: 0, but not eliminated)
-                    </p>
-                  </div>
-                </div>
-              </div>
-              
-              <div className="bg-blue-50 p-3 rounded-lg">
-                <p className="text-xs text-blue-800">
-                  <strong>Note:</strong> This setting affects how absent teams are handled when evaluations are saved. 
-                  The current setting is: <strong>{eliminateAbsentees ? 'Eliminate Absentees' : "Don't Eliminate"}</strong>
-                </p>
-              </div>
-            </div>
-            <div className="flex justify-end gap-2 pt-4">
-              <Button variant="outline" onClick={() => setIsEliminationModalOpen(false)}>
-                Close
-              </Button>
-            </div>
-          </DialogContent>
-        </Dialog>
 
         {/* Email Export Modal */}
         <Dialog open={isEmailModalOpen} onOpenChange={setIsEmailModalOpen}>
