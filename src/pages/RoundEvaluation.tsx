@@ -26,7 +26,8 @@ import {
   Filter,
   Search,
   Mail,
-  Send
+  Send,
+  User
 } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiService, Team, Event, TeamScore, RoundStats } from "@/services/api";
@@ -77,6 +78,13 @@ const RoundEvaluation = () => {
   const [isEmailModalOpen, setIsEmailModalOpen] = useState(false);
   const [emailRecipients, setEmailRecipients] = useState<string>('');
   const [eventName, setEventName] = useState<string>("Crestora'25");
+
+  // Elimination control state
+  const [eliminateAbsentees, setEliminateAbsentees] = useState<boolean>(true);
+  const [isEliminationModalOpen, setIsEliminationModalOpen] = useState(false);
+
+  // Export sorting state
+  const [exportSortBy, setExportSortBy] = useState<string>('team_name');
 
   // Get round ID from URL params
   useEffect(() => {
@@ -158,8 +166,8 @@ const RoundEvaluation = () => {
 
   // Evaluate team mutation
   const evaluateTeamMutation = useMutation({
-    mutationFn: ({ teamId, criteriaScores, isAlreadyEvaluated, isPresent }: { teamId: string; criteriaScores: Record<string, number>; isAlreadyEvaluated?: boolean; isPresent?: boolean }) =>
-      apiService.evaluateTeam(selectedRoundId!, teamId, criteriaScores, isPresent ?? true),
+    mutationFn: ({ teamId, criteriaScores, isAlreadyEvaluated, isPresent, eliminateAbsentees }: { teamId: string; criteriaScores: Record<string, number>; isAlreadyEvaluated?: boolean; isPresent?: boolean; eliminateAbsentees?: boolean }) =>
+      apiService.evaluateTeam(selectedRoundId!, teamId, criteriaScores, isPresent ?? true, eliminateAbsentees ?? true),
     onSuccess: (data, variables) => {
       // Only show success message for newly evaluated teams, not for updates to already evaluated teams
       if (!variables.isAlreadyEvaluated) {
@@ -385,7 +393,8 @@ const RoundEvaluation = () => {
         teamId,
         criteriaScores: evaluation.criteria_scores,
         isAlreadyEvaluated: evaluation.is_evaluated,
-        isPresent: evaluation.is_present
+        isPresent: evaluation.is_present,
+        eliminateAbsentees: eliminateAbsentees
       });
     }
   };
@@ -447,15 +456,20 @@ const RoundEvaluation = () => {
     if (!selectedRoundId) return;
     
     try {
-      const blob = await apiService.exportRoundData(selectedRoundId);
+      const blob = await apiService.exportRoundData(selectedRoundId, exportSortBy);
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `round_${selectedRoundId}_evaluations.csv`;
+      a.download = `round_${selectedRoundId}_evaluations_${exportSortBy}.csv`;
       document.body.appendChild(a);
       a.click();
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
+      
+      toast({
+        title: "Export Successful",
+        description: `Round data exported sorted by ${exportSortBy === 'team_name' ? 'team name' : 'score'}.`,
+      });
     } catch (error) {
       toast({
         title: "Export failed",
@@ -615,16 +629,27 @@ const RoundEvaluation = () => {
                 <span className="hidden xs:inline">Manage Criteria</span>
                 <span className="xs:hidden">Criteria</span>
               </Button>
-              <Button
-                variant="outline"
-                onClick={exportRoundData}
-                size="sm"
-                className="flex-1 sm:flex-none"
-              >
-                <Download className="h-4 w-4 mr-2" />
-                <span className="hidden xs:inline">Download CSV</span>
-                <span className="xs:hidden">Download</span>
-              </Button>
+              <div className="flex flex-col sm:flex-row gap-2 flex-1 sm:flex-none">
+                <Select value={exportSortBy} onValueChange={setExportSortBy}>
+                  <SelectTrigger className="w-full sm:w-40">
+                    <SelectValue placeholder="Sort by" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="team_name">Team Name</SelectItem>
+                    <SelectItem value="score">Score (High to Low)</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Button
+                  variant="outline"
+                  onClick={exportRoundData}
+                  size="sm"
+                  className="flex-1 sm:flex-none"
+                >
+                  <Download className="h-4 w-4 mr-2" />
+                  <span className="hidden xs:inline">Download CSV</span>
+                  <span className="xs:hidden">Download</span>
+                </Button>
+              </div>
               {user?.role === 'admin' && (
                 <Button
                   variant="outline"
@@ -653,6 +678,25 @@ const RoundEvaluation = () => {
             </div>
             
             <div className="flex flex-wrap gap-2">
+              {/* Elimination Control Button - PDA Only */}
+              {user?.role === 'admin' && (
+                <Button
+                  onClick={() => setIsEliminationModalOpen(true)}
+                  variant="outline"
+                  className="flex-1 sm:flex-none border-orange-200 hover:bg-orange-50"
+                  size="sm"
+                >
+                  <User className="h-4 w-4 mr-2" />
+                  <span className="hidden xs:inline">
+                    {eliminateAbsentees ? 'Eliminate Absentees' : "Don't Eliminate"}
+                  </span>
+                  <span className="xs:hidden">
+                    {eliminateAbsentees ? 'Eliminate' : "Don't Eliminate"}
+                  </span>
+                </Button>
+              )}
+              
+              {/* Freeze Round Button */}
               {!stats?.is_frozen && (user?.role === 'admin' || user?.role === 'clubs') && (
                 <Button
                   onClick={() => setIsFreezeDialogOpen(true)}
@@ -778,6 +822,25 @@ const RoundEvaluation = () => {
                 </div>
               )}
             </CardContent>
+          </Card>
+        )}
+
+        {/* Elimination Control Status - PDA Only */}
+        {user?.role === 'admin' && (
+          <Card className="bg-orange-50 border-orange-200">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-orange-800">
+                <User className="h-5 w-5" />
+                Absent Team Handling
+              </CardTitle>
+              <CardDescription className="text-orange-700">
+                Current setting: <strong>{eliminateAbsentees ? 'Eliminate Absentees' : "Don't Eliminate"}</strong>
+                {eliminateAbsentees ? 
+                  ' - Teams marked as absent will be eliminated (status: ELIMINATED)' : 
+                  ' - Teams marked as absent will keep their current status (score: 0)'
+                }
+              </CardDescription>
+            </CardHeader>
           </Card>
         )}
 
@@ -1257,6 +1320,74 @@ const RoundEvaluation = () => {
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+
+        {/* Elimination Control Modal */}
+        <Dialog open={isEliminationModalOpen} onOpenChange={setIsEliminationModalOpen}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <User className="h-5 w-5" />
+                Absent Team Elimination Control
+              </DialogTitle>
+              <DialogDescription>
+                Choose how to handle teams marked as absent during evaluation
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="space-y-3">
+                <div className="flex items-center space-x-3 p-3 rounded-lg border">
+                  <input
+                    type="radio"
+                    id="eliminate-absentees"
+                    name="elimination-option"
+                    checked={eliminateAbsentees}
+                    onChange={() => setEliminateAbsentees(true)}
+                    className="h-4 w-4 text-red-600 focus:ring-red-500"
+                  />
+                  <div className="flex-1">
+                    <label htmlFor="eliminate-absentees" className="text-sm font-medium cursor-pointer">
+                      Eliminate Absentees
+                    </label>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Teams marked as absent will be eliminated (status: ELIMINATED, score: 0)
+                    </p>
+                  </div>
+                </div>
+                
+                <div className="flex items-center space-x-3 p-3 rounded-lg border">
+                  <input
+                    type="radio"
+                    id="dont-eliminate"
+                    name="elimination-option"
+                    checked={!eliminateAbsentees}
+                    onChange={() => setEliminateAbsentees(false)}
+                    className="h-4 w-4 text-green-600 focus:ring-green-500"
+                  />
+                  <div className="flex-1">
+                    <label htmlFor="dont-eliminate" className="text-sm font-medium cursor-pointer">
+                      Don't Eliminate
+                    </label>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Teams marked as absent will keep their current status (score: 0, but not eliminated)
+                    </p>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="bg-blue-50 p-3 rounded-lg">
+                <p className="text-xs text-blue-800">
+                  <strong>Note:</strong> This setting affects how absent teams are handled when evaluations are saved. 
+                  The current setting is: <strong>{eliminateAbsentees ? 'Eliminate Absentees' : "Don't Eliminate"}</strong>
+                </p>
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 pt-4">
+              <Button variant="outline" onClick={() => setIsEliminationModalOpen(false)}>
+                Close
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
 
         {/* Email Export Modal */}
         <Dialog open={isEmailModalOpen} onOpenChange={setIsEmailModalOpen}>

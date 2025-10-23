@@ -493,12 +493,13 @@ class ApiService {
     return this.request<TeamScore[]>(`/rounds/rounds/${roundId}/evaluations`);
   }
 
-  async evaluateTeam(roundId: number, teamId: string, criteriaScores: Record<string, number>, isPresent: boolean = true): Promise<TeamScore> {
+  async evaluateTeam(roundId: number, teamId: string, criteriaScores: Record<string, number>, isPresent: boolean = true, eliminateAbsentees: boolean = true): Promise<TeamScore> {
     return this.request<TeamScore>(`/rounds/rounds/${roundId}/evaluate/${teamId}`, {
       method: 'PUT',
       body: JSON.stringify({
         criteria_scores: criteriaScores,
-        is_present: isPresent
+        is_present: isPresent,
+        eliminate_absentees: eliminateAbsentees
       }),
     });
   }
@@ -514,9 +515,9 @@ class ApiService {
     return this.request<RoundStats>(`/rounds/rounds/${roundId}/stats`);
   }
 
-  async exportRoundData(roundId: number): Promise<Blob> {
+  async exportRoundData(roundId: number, sortBy: string = 'team_name'): Promise<Blob> {
     const token = localStorage.getItem('auth_token');
-    const response = await fetch(`${API_BASE_URL}/rounds/rounds/${roundId}/export`, {
+    const response = await fetch(`${API_BASE_URL}/rounds/rounds/${roundId}/export?sort_by=${sortBy}`, {
       headers: {
         ...(token && { 'Authorization': `Bearer ${token}` }),
       },

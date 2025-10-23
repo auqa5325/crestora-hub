@@ -72,7 +72,8 @@ async def evaluate_team(
         evaluation_request.criteria_scores, 
         current_user.role, 
         current_user.club,
-        evaluation_request.is_present
+        evaluation_request.is_present,
+        evaluation_request.eliminate_absentees
     )
 
 @router.post("/rounds/{round_id}/freeze")
@@ -98,17 +99,22 @@ async def get_round_stats(
 @router.get("/rounds/{round_id}/export")
 async def export_round_data(
     round_id: int,
+    sort_by: str = "team_name",
     db: Session = Depends(get_db),
     current_user = Depends(require_club_or_pda())
 ):
     """Export round evaluations to CSV"""
+    # Validate sort_by parameter
+    if sort_by not in ["team_name", "score"]:
+        sort_by = "team_name"
+    
     # Validate user has access to this round
     round_service = RoundService(db)
     round_service.validate_round_access(round_id, current_user.role, current_user.club)
     
     # Export the data
     export_service = ExportService(db)
-    return export_service.export_round_data(round_id)
+    return export_service.export_round_data(round_id, sort_by)
 
 @router.post("/rounds/{round_id}/export-email")
 async def export_round_data_via_email(

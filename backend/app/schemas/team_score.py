@@ -38,3 +38,4 @@ class TeamScoreWithDetails(TeamScoreInDB):
 class TeamEvaluationRequest(BaseModel):
     criteria_scores: Dict[str, float]
     is_present: bool = True
+    eliminate_absentees: bool = True

@@ -67,7 +67,8 @@ class RoundService:
         return round_obj
 
     def evaluate_team(self, round_id: int, team_id: str, criteria_scores: Dict[str, float], 
-                     user_role: str, user_club: str = None, is_present: bool = True) -> TeamScore:
+                     user_role: str, user_club: str = None, is_present: bool = True, 
+                     eliminate_absentees: bool = True) -> TeamScore:
         """Evaluate a team for a specific round"""
         round_obj = self.db.query(UnifiedEvent).filter(UnifiedEvent.id == round_id).first()
         if not round_obj:
@@ -105,15 +106,18 @@ class RoundService:
         # Set presence status
         team_score.is_present = is_present
         
-        # If team is absent, set score to 0 and mark as eliminated
+        # If team is absent, set score to 0 and optionally mark as eliminated
         if not is_present:
             team_score.score = 0.0
             team_score.raw_total_score = 0.0
             team_score.criteria_scores = {}
             team_score.is_normalized = True
             
-            # Mark team as eliminated
-            team.status = TeamStatus.ELIMINATED
+            # Only mark team as eliminated if elimination is enabled
+            if eliminate_absentees:
+                team.status = TeamStatus.ELIMINATED
+            # If elimination is disabled, team keeps current status (usually ACTIVE)
+            
             self.db.commit()
         else:
             # Calculate raw total score only if team is present

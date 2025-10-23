@@ -14,7 +14,7 @@ class ExportService:
     def __init__(self, db: Session):
         self.db = db
 
-    def export_round_data(self, round_id: int) -> Response:
+    def export_round_data(self, round_id: int, sort_by: str = "team_name") -> Response:
         """Export round evaluations to CSV - includes ALL active teams with 0 scores for unevaluated teams"""
         
         # Get round information
@@ -29,6 +29,24 @@ class ExportService:
         existing_scores = self.db.query(TeamScore).filter(TeamScore.round_id == round_id).all()
         # Create a dictionary for quick lookup
         scores_dict = {score.team_id: score for score in existing_scores}
+        
+        # Prepare data for sorting
+        team_data = []
+        for team in all_active_teams:
+            score = scores_dict.get(team.team_id)
+            team_data.append({
+                'team': team,
+                'score': score,
+                'score_value': score.score if score else 0
+            })
+        
+        # Sort based on the sort_by parameter
+        if sort_by == "score":
+            # Sort by score (descending), then by team name (ascending)
+            team_data.sort(key=lambda x: (-x['score_value'], x['team'].team_name))
+        else:
+            # Default: sort by team name (ascending)
+            team_data.sort(key=lambda x: x['team'].team_name)
         
         # Create CSV content
         output = io.StringIO()
@@ -47,10 +65,10 @@ class ExportService:
         
         writer.writerow(header)
         
-        # Write data for ALL active teams
-        for team in all_active_teams:
-            # Check if team has existing scores
-            score = scores_dict.get(team.team_id)
+        # Write data for ALL active teams (now sorted)
+        for item in team_data:
+            team = item['team']
+            score = item['score']
             
             if score:
                 # Team has been evaluated
@@ -243,8 +261,8 @@ class ExportService:
         if is_evaluated is not None:
             query = query.filter(RollingEventResult.is_evaluated == is_evaluated)
         
-        # Get results
-        results = query.all()
+        # Get results and sort by event name
+        results = query.order_by(RollingEventResult.event_id).all()
         
         # Create CSV content
         output = io.StringIO()
