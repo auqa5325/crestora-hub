@@ -67,7 +67,7 @@ class RoundService:
         return round_obj
 
     def evaluate_team(self, round_id: int, team_id: str, criteria_scores: Dict[str, float], 
-                     user_role: str, user_club: str = None) -> TeamScore:
+                     user_role: str, user_club: str = None, is_present: bool = True) -> TeamScore:
         """Evaluate a team for a specific round"""
         round_obj = self.db.query(UnifiedEvent).filter(UnifiedEvent.id == round_id).first()
         if not round_obj:
@@ -97,29 +97,44 @@ class RoundService:
                 event_id=round_obj.event_id,
                 score=0.0,
                 raw_total_score=0.0,
-                is_normalized=False
+                is_normalized=False,
+                is_present=is_present
             )
             self.db.add(team_score)
         
-        # Calculate raw total score
-        raw_total = sum(criteria_scores.values())
-        team_score.raw_total_score = raw_total
-        team_score.criteria_scores = criteria_scores
+        # Set presence status
+        team_score.is_present = is_present
         
-        # Normalize to 100 if criteria are defined
-        if round_obj.criteria:
-            max_possible = sum(criterion.get('max_points', 0) for criterion in round_obj.criteria)
-            if max_possible > 0:
-                normalized_score = (raw_total / max_possible) * 100
-                team_score.score = min(normalized_score, 100.0)  # Cap at 100
-                team_score.is_normalized = True
-            else:
-                team_score.score = raw_total
-                team_score.is_normalized = False
-        else:
-            # Default normalization to 100
-            team_score.score = min(raw_total, 100.0)
+        # If team is absent, set score to 0 and mark as eliminated
+        if not is_present:
+            team_score.score = 0.0
+            team_score.raw_total_score = 0.0
+            team_score.criteria_scores = {}
             team_score.is_normalized = True
+            
+            # Mark team as eliminated
+            team.status = TeamStatus.ELIMINATED
+            self.db.commit()
+        else:
+            # Calculate raw total score only if team is present
+            raw_total = sum(criteria_scores.values())
+            team_score.raw_total_score = raw_total
+            team_score.criteria_scores = criteria_scores
+            
+            # Normalize to 100 if criteria are defined
+            if round_obj.criteria:
+                max_possible = sum(criterion.get('max_points', 0) for criterion in round_obj.criteria)
+                if max_possible > 0:
+                    normalized_score = (raw_total / max_possible) * 100
+                    team_score.score = min(normalized_score, 100.0)  # Cap at 100
+                    team_score.is_normalized = True
+                else:
+                    team_score.score = raw_total
+                    team_score.is_normalized = False
+            else:
+                # Default normalization to 100
+                team_score.score = min(raw_total, 100.0)
+                team_score.is_normalized = True
         
         self.db.commit()
         self.db.refresh(team_score)

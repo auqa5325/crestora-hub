@@ -48,6 +48,7 @@ export interface Round {
   event_id: string;
   round_number: number;
   name: string;
+  type?: 'title' | 'rolling';
   mode?: 'online' | 'offline';
   club?: string;
   date?: string;
@@ -117,6 +118,7 @@ export interface TeamScore {
   criteria_scores?: Record<string, number>;
   raw_total_score: number;
   is_normalized: boolean;
+  is_present: boolean;
   created_at: string;
   updated_at?: string;
 }
@@ -473,6 +475,13 @@ class ApiService {
     });
   }
 
+  async reorderRounds(eventId: string, roundOrders: Array<{round_id: number, new_round_number: number}>): Promise<{message: string}> {
+    return this.request<{message: string}>(`/rounds/${eventId}/reorder`, {
+      method: 'PUT',
+      body: JSON.stringify({ round_orders: roundOrders }),
+    });
+  }
+
   async updateRoundCriteria(roundId: number, criteria: Array<{name: string, max_points: number}>): Promise<any> {
     return this.request<any>(`/rounds/rounds/${roundId}/criteria`, {
       method: 'PUT',
@@ -484,10 +493,13 @@ class ApiService {
     return this.request<TeamScore[]>(`/rounds/rounds/${roundId}/evaluations`);
   }
 
-  async evaluateTeam(roundId: number, teamId: string, criteriaScores: Record<string, number>): Promise<TeamScore> {
+  async evaluateTeam(roundId: number, teamId: string, criteriaScores: Record<string, number>, isPresent: boolean = true): Promise<TeamScore> {
     return this.request<TeamScore>(`/rounds/rounds/${roundId}/evaluate/${teamId}`, {
       method: 'PUT',
-      body: JSON.stringify(criteriaScores),
+      body: JSON.stringify({
+        criteria_scores: criteriaScores,
+        is_present: isPresent
+      }),
     });
   }
 

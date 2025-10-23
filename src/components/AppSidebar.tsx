@@ -7,7 +7,8 @@ import {
   Settings,
   LogOut,
   Target,
-  Menu
+  Menu,
+  Wrench
 } from "lucide-react";
 import { NavLink } from "react-router-dom";
 import {
@@ -32,6 +33,7 @@ const menuItems = [
   { title: "Teams", url: "/teams", icon: Users, roles: ["admin", "clubs"] },
   { title: "Leaderboard", url: "/leaderboard", icon: Trophy, roles: ["admin"] },
   { title: "Rolling Results", url: "/rolling-results", icon: Trophy, roles: ["admin", "clubs"] },
+  { title: "PDA Round Management", url: "/pda-round-management", icon: Wrench, roles: ["admin"] },
   // Temporarily hidden - Finance
   // { title: "Finance", url: "/finance", icon: DollarSign, roles: ["admin"] },
 ];

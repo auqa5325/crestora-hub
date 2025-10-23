@@ -37,7 +37,7 @@ class ExportService:
         # Write header
         header = [
             "Team ID", "Team Name", "Leader Name", "Score", "Raw Total Score", 
-            "Is Normalized", "Created At", "Updated At"
+            "Is Normalized", "Is Present", "Created At", "Updated At"
         ]
         
         # Add criteria columns if criteria are defined
@@ -61,6 +61,7 @@ class ExportService:
                     score.score,
                     score.raw_total_score,
                     score.is_normalized,
+                    score.is_present,
                     score.created_at.strftime("%Y-%m-%d %H:%M:%S") if score.created_at else "",
                     score.updated_at.strftime("%Y-%m-%d %H:%M:%S") if score.updated_at else ""
                 ]
@@ -84,6 +85,7 @@ class ExportService:
                     0,  # Score = 0
                     0,  # Raw Total Score = 0
                     False,  # Is Normalized = False
+                    True,  # Is Present = True (default for unevaluated teams)
                     "",  # Created At = empty
                     ""   # Updated At = empty
                 ]

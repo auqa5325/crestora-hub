@@ -6,9 +6,9 @@ from app.database import get_db
 from app.models.rounds import UnifiedEvent, EventType, EventStatus, EventMode
 from app.schemas.unified_event import (
     UnifiedEventInDB, UnifiedEventCreate, UnifiedEventUpdate, 
-    EventWithRounds, EventStats
+    EventWithRounds, EventStats, RoundReorderRequest
 )
-from app.schemas.team_score import TeamScoreInDB, TeamScoreUpdate
+from app.schemas.team_score import TeamScoreInDB, TeamScoreUpdate, TeamEvaluationRequest
 from app.services.round_service import RoundService
 from app.services.export_service import ExportService
 from app.services.gmail_service import gmail_service
@@ -60,13 +60,20 @@ async def get_round_evaluations(
 async def evaluate_team(
     round_id: int,
     team_id: str,
-    criteria_scores: Dict[str, float],
+    evaluation_request: TeamEvaluationRequest,
     db: Session = Depends(get_db),
     current_user = Depends(require_club_or_pda())
 ):
     """Submit/update evaluation for a team"""
     round_service = RoundService(db)
-    return round_service.evaluate_team(round_id, team_id, criteria_scores, current_user.role, current_user.club)
+    return round_service.evaluate_team(
+        round_id, 
+        team_id, 
+        evaluation_request.criteria_scores, 
+        current_user.role, 
+        current_user.club,
+        evaluation_request.is_present
+    )
 
 @router.post("/rounds/{round_id}/freeze")
 async def freeze_round(
@@ -389,6 +396,49 @@ async def create_event(event_data: UnifiedEventCreate, db: Session = Depends(get
     db.refresh(db_event)
     
     return db_event
+
+@router.put("/{event_id}/reorder")
+async def reorder_rounds(
+    event_id: str,
+    reorder_request: RoundReorderRequest,
+    db: Session = Depends(get_db),
+    current_user = Depends(require_pda_role())
+):
+    """Reorder rounds for an event (PDA only)"""
+    try:
+        round_orders = reorder_request.round_orders
+        
+        # Validate that all rounds belong to the event
+        round_ids = [order.round_id for order in round_orders]
+        existing_rounds = db.query(UnifiedEvent).filter(
+            UnifiedEvent.event_id == event_id,
+            UnifiedEvent.id.in_(round_ids),
+            UnifiedEvent.round_number > 0
+        ).all()
+        
+        if len(existing_rounds) != len(round_ids):
+            raise HTTPException(status_code=400, detail="Some rounds not found or don't belong to this event")
+        
+        # Check for duplicate round numbers
+        new_round_numbers = [order.new_round_number for order in round_orders]
+        if len(new_round_numbers) != len(set(new_round_numbers)):
+            raise HTTPException(status_code=400, detail="Duplicate round numbers not allowed")
+        
+        # Update round numbers
+        for order in round_orders:
+            round_obj = db.query(UnifiedEvent).filter(
+                UnifiedEvent.id == order.round_id
+            ).first()
+            if round_obj:
+                round_obj.round_number = order.new_round_number
+        
+        db.commit()
+        
+        return {"message": "Rounds reordered successfully"}
+    except Exception as e:
+        db.rollback()
+        print(f"Error reordering rounds: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to reorder rounds: {str(e)}")
 
 @router.put("/{event_id}/{round_number}")
 async def update_event_or_round(

@@ -136,3 +136,12 @@ class EventStats(BaseModel):
     upcoming_rounds: int
     in_progress_rounds: int
     completed_rounds: int
+
+class RoundReorderItem(BaseModel):
+    """Single round reorder item"""
+    round_id: int
+    new_round_number: int
+
+class RoundReorderRequest(BaseModel):
+    """Request to reorder rounds"""
+    round_orders: List[RoundReorderItem]

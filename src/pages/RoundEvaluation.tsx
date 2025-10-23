@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -47,6 +48,7 @@ interface TeamEvaluation {
   total_score: number;
   normalized_score: number;
   is_evaluated: boolean;
+  is_present: boolean;
 }
 
 const RoundEvaluation = () => {
@@ -156,8 +158,8 @@ const RoundEvaluation = () => {
 
   // Evaluate team mutation
   const evaluateTeamMutation = useMutation({
-    mutationFn: ({ teamId, criteriaScores, isAlreadyEvaluated }: { teamId: string; criteriaScores: Record<string, number>; isAlreadyEvaluated?: boolean }) =>
-      apiService.evaluateTeam(selectedRoundId!, teamId, criteriaScores),
+    mutationFn: ({ teamId, criteriaScores, isAlreadyEvaluated, isPresent }: { teamId: string; criteriaScores: Record<string, number>; isAlreadyEvaluated?: boolean; isPresent?: boolean }) =>
+      apiService.evaluateTeam(selectedRoundId!, teamId, criteriaScores, isPresent ?? true),
     onSuccess: (data, variables) => {
       // Only show success message for newly evaluated teams, not for updates to already evaluated teams
       if (!variables.isAlreadyEvaluated) {
@@ -263,7 +265,8 @@ const RoundEvaluation = () => {
         criteria_scores,
         total_score,
           normalized_score: Math.min(normalized_score, 100),
-          is_evaluated: total_score > 0
+          is_evaluated: total_score > 0,
+          is_present: existingEvaluation?.is_present ?? true
       };
     });
     
@@ -381,9 +384,32 @@ const RoundEvaluation = () => {
       evaluateTeamMutation.mutate({
         teamId,
         criteriaScores: evaluation.criteria_scores,
-        isAlreadyEvaluated: evaluation.is_evaluated
+        isAlreadyEvaluated: evaluation.is_evaluated,
+        isPresent: evaluation.is_present
       });
     }
+  };
+
+  // Toggle team presence
+  const toggleTeamPresence = (teamId: string) => {
+    setTeamEvaluations(prev => prev.map(evaluation => {
+      if (evaluation.team_id === teamId) {
+        const newIsPresent = !evaluation.is_present;
+        return {
+          ...evaluation,
+          is_present: newIsPresent,
+          // If team is marked as absent, clear scores
+          criteria_scores: newIsPresent ? evaluation.criteria_scores : {},
+          total_score: newIsPresent ? evaluation.total_score : 0,
+          normalized_score: newIsPresent ? evaluation.normalized_score : 0,
+          is_evaluated: newIsPresent ? evaluation.is_evaluated : false
+        };
+      }
+      return evaluation;
+    }));
+    
+    // Mark as having unsaved changes
+    setUnsavedChanges(prev => new Set(prev).add(teamId));
   };
 
   // Add criterion
@@ -920,6 +946,20 @@ const RoundEvaluation = () => {
                                       return null;
                                     })()}
                                   </div>
+                                  <div className="flex items-center gap-2 mt-2">
+                                    <Checkbox
+                                      id={`present-${evaluation.team_id}`}
+                                      checked={evaluation.is_present}
+                                      onCheckedChange={() => toggleTeamPresence(evaluation.team_id)}
+                                      disabled={stats?.is_frozen}
+                                    />
+                                    <Label htmlFor={`present-${evaluation.team_id}`} className="text-sm">
+                                      Team Present
+                                    </Label>
+                                    {!evaluation.is_present && (
+                                      <Badge variant="destructive" className="text-xs">ABSENT</Badge>
+                                    )}
+                                  </div>
                                 </div>
                                 <div className="text-right flex-shrink-0">
                                   <div className="text-xl sm:text-2xl font-bold text-green-600">
@@ -953,7 +993,7 @@ const RoundEvaluation = () => {
                                       criterion.name, 
                                       parseFloat(e.target.value) || 0
                                     )}
-                                    disabled={false}
+                                    disabled={!evaluation.is_present || stats?.is_frozen}
                                     className={
                                       (evaluation.criteria_scores[criterion.name] || 0) > criterion.max_points
                                         ? "border-red-500 bg-red-50"
@@ -1044,6 +1084,20 @@ const RoundEvaluation = () => {
                                     return null;
                                   })()}
                             </div>
+                            <div className="flex items-center gap-2 mt-2">
+                              <Checkbox
+                                id={`present-non-${evaluation.team_id}`}
+                                checked={evaluation.is_present}
+                                onCheckedChange={() => toggleTeamPresence(evaluation.team_id)}
+                                disabled={stats?.is_frozen}
+                              />
+                              <Label htmlFor={`present-non-${evaluation.team_id}`} className="text-sm">
+                                Team Present
+                              </Label>
+                              {!evaluation.is_present && (
+                                <Badge variant="destructive" className="text-xs">ABSENT</Badge>
+                              )}
+                            </div>
                               </div>
                               <div className="text-right flex-shrink-0">
                                 <div className="text-xl sm:text-2xl font-bold text-yellow-600">
@@ -1077,7 +1131,7 @@ const RoundEvaluation = () => {
                                     criterion.name, 
                                     parseFloat(e.target.value) || 0
                                   )}
-                                disabled={false}
+                                disabled={!evaluation.is_present || stats?.is_frozen}
                                 className={
                                   (evaluation.criteria_scores[criterion.name] || 0) > criterion.max_points
                                     ? "border-red-500 bg-red-50"

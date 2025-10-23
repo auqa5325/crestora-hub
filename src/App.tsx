@@ -12,6 +12,7 @@ import Events from "./pages/Events";
 import RollingEventsResults from "./pages/RollingEventsResults";
 import RoundsDashboard from "./pages/RoundsDashboard";
 import RoundEvaluation from "./pages/RoundEvaluation";
+import PDARoundManagement from "./pages/PDARoundManagement";
 import Teams from "./pages/Teams";
 import Leaderboard from "./pages/Leaderboard";
 import Finance from "./pages/Finance";
@@ -76,6 +77,14 @@ const App = () => (
               element={
                 <ProtectedRoute requiredRoles={['admin', 'clubs']}>
                   <RoundEvaluation />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/pda-round-management" 
+              element={
+                <ProtectedRoute requiredRole="admin">
+                  <PDARoundManagement />
                 </ProtectedRoute>
               } 
             />

@@ -10,6 +10,7 @@ class TeamScoreBase(BaseModel):
     criteria_scores: Optional[Dict[str, float]] = None
     raw_total_score: float = Field(..., ge=0)
     is_normalized: bool = False
+    is_present: bool = True
 
 class TeamScoreCreate(TeamScoreBase):
     pass
@@ -19,6 +20,7 @@ class TeamScoreUpdate(BaseModel):
     criteria_scores: Optional[Dict[str, float]] = None
     raw_total_score: Optional[float] = Field(None, ge=0)
     is_normalized: Optional[bool] = None
+    is_present: Optional[bool] = None
 
 class TeamScoreInDB(TeamScoreBase):
     id: int
@@ -32,3 +34,7 @@ class TeamScoreWithDetails(TeamScoreInDB):
     team_name: Optional[str] = None
     round_name: Optional[str] = None
     event_name: Optional[str] = None
+
+class TeamEvaluationRequest(BaseModel):
+    criteria_scores: Dict[str, float]
+    is_present: bool = True
