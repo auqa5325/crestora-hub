@@ -579,29 +579,40 @@ class RoundService:
         if not round_obj.is_frozen:
             raise ValueError("Round must be frozen before handling absentees")
         
-        # Get all team scores for this round where teams are marked as absent
-        absent_team_scores = self.db.query(TeamScore).filter(
-            and_(
-                TeamScore.round_id == round_id,
-                TeamScore.is_present == False
-            )
-        ).all()
-        
         eliminated_count = 0
         reactivated_count = 0
         
-        for team_score in absent_team_scores:
-            team = self.db.query(Team).filter(Team.team_id == team_score.team_id).first()
-            if not team:
-                continue
+        if eliminate_absentees:
+            # Get all team scores for this round where teams are marked as absent
+            absent_team_scores = self.db.query(TeamScore).filter(
+                and_(
+                    TeamScore.round_id == round_id,
+                    TeamScore.is_present == False
+                )
+            ).all()
             
-            if eliminate_absentees:
+            for team_score in absent_team_scores:
+                team = self.db.query(Team).filter(Team.team_id == team_score.team_id).first()
+                if not team:
+                    continue
+                
                 # Eliminate the team if not already eliminated
                 if team.status != TeamStatus.ELIMINATED:
                     team.status = TeamStatus.ELIMINATED
                     eliminated_count += 1
-            else:
-                # Reactivate the team if it was eliminated due to absence
+        else:
+            # When reactivating, handle both absent teams and already eliminated teams
+            # Get all teams that participated in this round (have team scores)
+            round_team_scores = self.db.query(TeamScore).filter(
+                TeamScore.round_id == round_id
+            ).all()
+            
+            for team_score in round_team_scores:
+                team = self.db.query(Team).filter(Team.team_id == team_score.team_id).first()
+                if not team:
+                    continue
+                
+                # Reactivate the team if it was eliminated (regardless of whether it was absent or not)
                 if team.status == TeamStatus.ELIMINATED:
                     team.status = TeamStatus.ACTIVE
                     reactivated_count += 1
@@ -609,7 +620,7 @@ class RoundService:
         self.db.commit()
         
         return {
-            "message": f"Absent teams processed successfully. {eliminated_count} teams eliminated, {reactivated_count} teams reactivated.",
+            "message": f"Teams processed successfully. {eliminated_count} teams eliminated, {reactivated_count} teams reactivated.",
             "eliminated_count": eliminated_count,
             "reactivated_count": reactivated_count,
             "eliminate_absentees": eliminate_absentees

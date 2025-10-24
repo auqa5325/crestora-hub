@@ -170,7 +170,7 @@ class ExportService:
                     rounds_completed += 1
             
             if total_weight > 0:
-                # Calculate weighted average
+                # Calculate weighted average for reference
                 weighted_average = total_weighted_score / total_weight
                 
                 # Update current_round for active teams: current_round = rounds_completed + 1
@@ -179,32 +179,36 @@ class ExportService:
                     if team.current_round != new_current_round:
                         team.current_round = new_current_round
                 
+                # Use weighted score (sum) as the primary metric
+                final_score = total_weighted_score
+                
                 leaderboard.append({
                     "rank": 0,  # Will be set after sorting
                     "team_id": team.team_id,
                     "team_name": team.team_name,
                     "leader_name": team.leader_name,
+                    "final_score": round(final_score, 2),
                     "weighted_average": round(weighted_average, 2),
                     "rounds_completed": rounds_completed,
                     "current_round": team.current_round,
                     "status": team.status
                 })
         
-        # Add normalization and sort by weighted average
+        # Add normalized score for reference (optional)
         if leaderboard:
-            # Find the maximum weighted average
-            max_score = max(team["weighted_average"] for team in leaderboard)
+            # Find the maximum final score (weighted score)
+            max_score = max(team["final_score"] for team in leaderboard)
             
-            # Add normalized score
+            # Add normalized score for reference
             for team in leaderboard:
                 if max_score > 0:
-                    normalized_score = (team["weighted_average"] / max_score) * 100
+                    normalized_score = (team["final_score"] / max_score) * 100
                     team["normalized_score"] = round(normalized_score, 2)
                 else:
                     team["normalized_score"] = 0.0
         
-        # Sort by weighted average (descending)
-        leaderboard.sort(key=lambda x: x["weighted_average"], reverse=True)
+        # Sort by final score (weighted score) descending
+        leaderboard.sort(key=lambda x: x["final_score"], reverse=True)
         
         # Add rank
         for i, team in enumerate(leaderboard):
@@ -214,26 +218,52 @@ class ExportService:
         output = io.StringIO()
         writer = csv.writer(output)
         
-        # Write header
-        writer.writerow([
+        # Get all evaluated rounds for column headers
+        all_rounds = self.db.query(UnifiedEvent).filter(
+            UnifiedEvent.is_evaluated == True,
+            UnifiedEvent.round_number > 0
+        ).order_by(UnifiedEvent.round_number).all()
+        
+        # Create header with round columns
+        header = [
             "Rank", "Team ID", "Team Name", "Leader Name", 
-            "Weighted Average", "Normalized Score", "Rounds Completed", 
-            "Current Round", "Status"
-        ])
+            "Final Score", "Percentile", "Rounds Completed", "Status"
+        ]
+        
+        # Add round columns
+        for round_data in all_rounds:
+            header.append(f"Round {round_data.round_number} Score")
+        
+        writer.writerow(header)
+        
+        # Get team scores for all teams
+        team_scores_dict = {}
+        for team in leaderboard:
+            team_scores = self.db.query(TeamScore).filter(
+                TeamScore.team_id == team["team_id"]
+            ).all()
+            team_scores_dict[team["team_id"]] = {score.round_id: score.score for score in team_scores}
         
         # Write data
         for team in leaderboard:
-            writer.writerow([
+            row = [
                 team["rank"],
                 team["team_id"],
                 team["team_name"],
                 team["leader_name"],
-                team["weighted_average"],
-                team["normalized_score"],
+                team["final_score"],
+                team["normalized_score"],  # This is the percentile
                 team["rounds_completed"],
-                team["current_round"],
                 team["status"]
-            ])
+            ]
+            
+            # Add round scores
+            team_scores = team_scores_dict.get(team["team_id"], {})
+            for round_data in all_rounds:
+                score = team_scores.get(round_data.id, 0.0)
+                row.append(round(score, 2))
+            
+            writer.writerow(row)
         
         # Commit any current_round updates
         self.db.commit()

@@ -89,11 +89,12 @@ async def freeze_round(
 @router.post("/rounds/{round_id}/handle-absentees")
 async def handle_absentees(
     round_id: int,
-    eliminate_absentees: bool,
+    request_data: dict,
     db: Session = Depends(get_db),
     current_user = Depends(require_pda_role())
 ):
     """Handle absent teams after freezing (PDA only)"""
+    eliminate_absentees = request_data.get("eliminate_absentees", True)
     round_service = RoundService(db)
     return round_service.handle_absentees_after_freezing(round_id, eliminate_absentees)
 

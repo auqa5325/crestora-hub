@@ -126,7 +126,7 @@ def test_public_apis():
             print(f"   Top {len(leaderboard)} teams in leaderboard")
             if leaderboard:
                 top_team = leaderboard[0]
-                print(f"   #1 Team: {top_team.get('team_name', 'N/A')} (Score: {top_team.get('overall_score', 'N/A')})")
+                print(f"   #1 Team: {top_team.get('team_name', 'N/A')} (Score: {top_team.get('final_score', 'N/A')})")
         else:
             print(f"❌ Get leaderboard failed: {response.status_code}")
     except Exception as e:

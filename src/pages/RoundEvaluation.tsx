@@ -238,9 +238,18 @@ const RoundEvaluation = () => {
     mutationFn: (eliminateAbsentees: boolean) =>
       apiService.handleAbsentees(selectedRoundId!, eliminateAbsentees),
     onSuccess: (data) => {
+      console.log('Handle absentees success data:', data);
+      console.log('Data message:', data?.message);
+      console.log('Data type:', typeof data);
+      console.log('Data keys:', Object.keys(data || {}));
+      
+      const message = data?.message || "Teams have been processed successfully.";
+      const eliminatedCount = data?.eliminated_count || 0;
+      const reactivatedCount = data?.reactivated_count || 0;
+      
       toast({
-        title: "Absentees Handled",
-        description: data.message || "Absent teams have been processed successfully.",
+        title: "Teams Processed Successfully",
+        description: `${message} (${eliminatedCount} eliminated, ${reactivatedCount} reactivated)`,
       });
       setIsEliminationModalOpen(false);
       // Refresh data to show updated team statuses
@@ -277,9 +286,9 @@ const RoundEvaluation = () => {
       setCriteria([{ name: "Overall Performance", max_points: 100 }]);
     }
 
-      // Initialize team evaluations (only for ACTIVE teams)
-      const activeTeams = teams.filter(team => team.status === 'ACTIVE');
-      const evaluations: TeamEvaluation[] = activeTeams.map(team => {
+      // Initialize team evaluations (all teams for frozen rounds, only ACTIVE for active rounds)
+      const teamsToEvaluate = stats?.is_frozen ? teams : teams.filter(team => team.status === 'ACTIVE');
+      const evaluations: TeamEvaluation[] = teamsToEvaluate.map(team => {
         const existingEvaluation = roundEvaluations.find(evaluation => evaluation.team_id === team.team_id);
       
       const criteria_scores: Record<string, number> = {};
@@ -801,7 +810,7 @@ const RoundEvaluation = () => {
                   <Lock className="h-5 w-5" />
                   Round Frozen
                 </div>
-                {user?.role === 'admin' && (
+                {user?.role === 'admin' && !stats?.is_evaluated && (
                   <Button
                     onClick={() => setIsEliminationModalOpen(true)}
                     variant="outline"
@@ -815,7 +824,7 @@ const RoundEvaluation = () => {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+              <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4">
                 <div className="text-center sm:text-left">
                   <p className="text-xs sm:text-sm text-blue-600">Max Score</p>
                   <p className="text-lg sm:text-2xl font-bold text-blue-800">{stats.max_score?.toFixed(1) || 'N/A'}</p>
@@ -831,6 +840,12 @@ const RoundEvaluation = () => {
                 <div className="text-center sm:text-left">
                   <p className="text-xs sm:text-sm text-blue-600">Teams Evaluated</p>
                   <p className="text-lg sm:text-2xl font-bold text-blue-800">{stats.participated_count}</p>
+                </div>
+                <div className="text-center sm:text-left">
+                  <p className="text-xs sm:text-sm text-blue-600">Absent Teams</p>
+                  <p className="text-lg sm:text-2xl font-bold text-blue-800">
+                    {teamEvaluations.filter(evaluation => !evaluation.is_present).length}
+                  </p>
                 </div>
               </div>
               {stats.top_3_teams && stats.top_3_teams.length > 0 && (
@@ -1346,10 +1361,10 @@ const RoundEvaluation = () => {
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
                 <User className="h-5 w-5" />
-                Handle Absent Teams
+                Handle Absentees
               </DialogTitle>
               <DialogDescription>
-                Choose how to handle teams marked as absent in this frozen round
+                Choose how to handle absent teams in this frozen round
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4">

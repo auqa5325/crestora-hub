@@ -361,7 +361,7 @@ async def get_public_leaderboard(
     """
     Get public leaderboard - PUBLIC ACCESS (No authentication required)
     
-    Returns a leaderboard of teams ranked by their weighted average across all evaluated and frozen rounds.
+    Returns a leaderboard of teams ranked by their weighted scores (sum of weighted scores) across all evaluated and frozen rounds.
     Uses the same calculation logic as the main leaderboard for consistency.
     This endpoint is publicly accessible and doesn't require authentication.
     
@@ -369,7 +369,7 @@ async def get_public_leaderboard(
     - limit: Number of top teams to return (1-100)
     
     Returns:
-    - Ranked list of teams with their weighted averages and normalized scores
+    - Ranked list of teams with their weighted scores and normalized scores
     """
     # Get all evaluated rounds
     evaluated_rounds = db.query(UnifiedEvent).filter(
@@ -420,7 +420,7 @@ async def get_public_leaderboard(
         # Create a dictionary for faster lookup
         team_scores_dict = {score.round_id: score.score for score in team_scores}
         
-        # Calculate weighted average (including 0 scores for missing rounds)
+        # Calculate weighted score (sum of weighted scores) and weighted average
         total_weighted_score = 0.0
         total_weight = 0.0
         rounds_completed = 0
@@ -438,37 +438,39 @@ async def get_public_leaderboard(
             rounds_completed += 1
         
         if total_weight > 0:
-            # Calculate weighted average
+            # Calculate weighted average for reference
             weighted_average = total_weighted_score / total_weight
+            
+            # Use weighted score (sum) as the primary metric
+            final_score = total_weighted_score
             
             leaderboard.append({
                 "team_id": team.team_id,
                 "team_name": team.team_name,
                 "leader_name": team.leader_name,
+                "final_score": round(final_score, 2),
                 "weighted_average": round(weighted_average, 2),
                 "rounds_completed": rounds_completed,
                 "current_round": team.current_round,
                 "status": team.status
             })
     
-    # Normalize all scores to 100 and add both scores (same as main leaderboard)
+    # Add normalized score for reference (optional)
     if leaderboard:
-        # Find the maximum weighted average
-        max_score = max(team["weighted_average"] for team in leaderboard)
+        # Find the maximum final score (weighted score)
+        max_score = max(team["final_score"] for team in leaderboard)
         
-        # Add both weighted average and normalized score
+        # Add normalized score for reference
         for team in leaderboard:
             if max_score > 0:
-                normalized_score = (team["weighted_average"] / max_score) * 100
+                normalized_score = (team["final_score"] / max_score) * 100
                 team["normalized_score"] = round(normalized_score, 2)
                 team["percentile"] = round(normalized_score, 1)  # Keep for compatibility
-                team["final_score"] = round(normalized_score, 2)  # Keep for compatibility
             else:
                 team["normalized_score"] = 0.0
                 team["percentile"] = 0.0
-                team["final_score"] = 0.0
     
-    # Sort by final score (descending)
+    # Sort by final score (weighted score) descending
     leaderboard.sort(key=lambda x: x["final_score"], reverse=True)
     
     # Add rank

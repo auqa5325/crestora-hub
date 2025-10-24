@@ -138,7 +138,7 @@ async def get_leaderboard(db: Session = Depends(get_db)):
         # Create a dictionary of scores for easier lookup
         team_scores_dict = {score.round_id: score.score for score in team_scores}
         
-        # Calculate weighted average (including 0 scores for missing rounds)
+        # Calculate weighted score (sum of weighted scores) and weighted average
         total_weighted_score = 0.0
         total_weight = 0.0
         rounds_completed = 0
@@ -156,7 +156,7 @@ async def get_leaderboard(db: Session = Depends(get_db)):
             rounds_completed += 1
         
         if total_weight > 0:
-            # Calculate weighted average
+            # Calculate weighted average for reference
             weighted_average = total_weighted_score / total_weight
             
             # Update current_round for active teams: current_round = rounds_completed + 1
@@ -166,34 +166,32 @@ async def get_leaderboard(db: Session = Depends(get_db)):
                     team.current_round = new_current_round
                     # We'll commit this change at the end
             
-            # Normalize to 100: scale the weighted average to 100
-            # Find the maximum possible weighted average across all teams for normalization
-            final_score = weighted_average  # For now, keep as is since scores should already be normalized
+            # Use weighted score (sum) as the primary metric
+            final_score = total_weighted_score
             
             leaderboard.append({
                 "team_id": team.team_id,
                 "team_name": team.team_name,
                 "leader_name": team.leader_name,
+                "final_score": round(final_score, 2),
                 "weighted_average": round(weighted_average, 2),
                 "rounds_completed": rounds_completed,
                 "current_round": team.current_round,
                 "status": team.status
             })
     
-    # Normalize all scores to 100 and add both scores
+    # Add normalized score for reference (optional)
     if leaderboard:
-        # Find the maximum weighted average
-        max_score = max(team["weighted_average"] for team in leaderboard)
+        # Find the maximum final score (weighted score)
+        max_score = max(team["final_score"] for team in leaderboard)
         
-        # Add both weighted average and normalized score
+        # Add normalized score for reference
         for team in leaderboard:
             if max_score > 0:
-                normalized_score = (team["weighted_average"] / max_score) * 100
+                normalized_score = (team["final_score"] / max_score) * 100
                 team["normalized_score"] = round(normalized_score, 2)
-                team["final_score"] = round(normalized_score, 2)  # Keep final_score for backward compatibility
             else:
                 team["normalized_score"] = 0.0
-                team["final_score"] = 0.0
     
     # Sort by final score (descending)
     leaderboard.sort(key=lambda x: x["final_score"], reverse=True)
@@ -242,36 +240,74 @@ async def update_round_weight(
 
 @router.get("/export")
 async def export_leaderboard(db: Session = Depends(get_db)):
-    """Export leaderboard data as CSV"""
+    """Export leaderboard data as CSV with roundwise scores"""
     
     # Get leaderboard data
     leaderboard_data = await get_leaderboard(db)
     teams = leaderboard_data.get("teams", [])
     
+    if not teams:
+        raise HTTPException(status_code=404, detail="No leaderboard data found to export")
+    
+    # Get all evaluated and frozen rounds for column headers
+    evaluated_rounds = db.query(UnifiedEvent).filter(
+        UnifiedEvent.is_evaluated == True,
+        UnifiedEvent.round_number > 0
+    ).all()
+    
+    frozen_rounds = db.query(UnifiedEvent).filter(
+        UnifiedEvent.is_frozen == True,
+        UnifiedEvent.is_evaluated == False,
+        UnifiedEvent.round_number > 0
+    ).all()
+    
+    all_rounds = evaluated_rounds + frozen_rounds
+    all_rounds.sort(key=lambda x: x.round_number)
+    
     # Create CSV content
     output = io.StringIO()
     writer = csv.writer(output)
     
-    # Write header
-    writer.writerow([
+    # Create header with round columns
+    header = [
         "Rank", "Team ID", "Team Name", "Leader Name", 
-        "Final Score", "Weighted Average", "Rounds Completed", 
-        "Current Round", "Status"
-    ])
+        "Final Score", "Percentile", "Rounds Completed", "Status"
+    ]
+    
+    # Add round columns
+    for round_data in all_rounds:
+        header.append(f"Round {round_data.round_number} Score")
+    
+    writer.writerow(header)
+    
+    # Get team scores for all teams
+    team_scores_dict = {}
+    for team in teams:
+        team_scores = db.query(TeamScore).filter(
+            TeamScore.team_id == team["team_id"]
+        ).all()
+        team_scores_dict[team["team_id"]] = {score.round_id: score.score for score in team_scores}
     
     # Write data
     for team in teams:
-        writer.writerow([
+        row = [
             team["rank"],
             team["team_id"],
             team["team_name"],
             team["leader_name"],
             team["final_score"],
-            team["weighted_average"],
+            team["normalized_score"],  # This is the percentile
             team["rounds_completed"],
-            team["current_round"],
             team["status"]
-        ])
+        ]
+        
+        # Add round scores
+        team_scores = team_scores_dict.get(team["team_id"], {})
+        for round_data in all_rounds:
+            score = team_scores.get(round_data.id, 0.0)
+            row.append(round(score, 2))
+        
+        writer.writerow(row)
     
     # Get CSV content
     csv_content = output.getvalue()
@@ -510,30 +546,65 @@ async def export_leaderboard_via_email(
         if not teams:
             raise HTTPException(status_code=400, detail="No leaderboard data found to export")
         
+        # Get all evaluated and frozen rounds for column headers
+        evaluated_rounds = db.query(UnifiedEvent).filter(
+            UnifiedEvent.is_evaluated == True,
+            UnifiedEvent.round_number > 0
+        ).all()
+        
+        frozen_rounds = db.query(UnifiedEvent).filter(
+            UnifiedEvent.is_frozen == True,
+            UnifiedEvent.is_evaluated == False,
+            UnifiedEvent.round_number > 0
+        ).all()
+        
+        all_rounds = evaluated_rounds + frozen_rounds
+        all_rounds.sort(key=lambda x: x.round_number)
+        
         # Create CSV content
         output = io.StringIO()
         writer = csv.writer(output)
         
-        # Write header
-        writer.writerow([
+        # Create header with round columns
+        header = [
             "Rank", "Team ID", "Team Name", "Leader Name", 
-            "Final Score", "Weighted Average", "Rounds Completed", 
-            "Current Round", "Status"
-        ])
+            "Final Score", "Percentile", "Rounds Completed", "Status"
+        ]
+        
+        # Add round columns
+        for round_data in all_rounds:
+            header.append(f"Round {round_data.round_number} Score")
+        
+        writer.writerow(header)
+        
+        # Get team scores for all teams
+        team_scores_dict = {}
+        for team in teams:
+            team_scores = db.query(TeamScore).filter(
+                TeamScore.team_id == team["team_id"]
+            ).all()
+            team_scores_dict[team["team_id"]] = {score.round_id: score.score for score in team_scores}
         
         # Write data
         for team in teams:
-            writer.writerow([
+            row = [
                 team["rank"],
                 team["team_id"],
                 team["team_name"],
                 team["leader_name"],
                 team["final_score"],
-                team["weighted_average"],
+                team["normalized_score"],  # This is the percentile
                 team["rounds_completed"],
-                team["current_round"],
                 team["status"]
-            ])
+            ]
+            
+            # Add round scores
+            team_scores = team_scores_dict.get(team["team_id"], {})
+            for round_data in all_rounds:
+                score = team_scores.get(round_data.id, 0.0)
+                row.append(round(score, 2))
+            
+            writer.writerow(row)
         
         # Get CSV content as bytes
         csv_content = output.getvalue()

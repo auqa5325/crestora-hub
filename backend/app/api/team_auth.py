@@ -34,8 +34,8 @@ async def team_login(
             detail="No team found with this team ID"
         )
     
-    # Check if team is active
-    if team.status != TeamStatus.ACTIVE:
+    # Check if team is active or eliminated (both can login to view profile)
+    if team.status not in [TeamStatus.ACTIVE, TeamStatus.ELIMINATED]:
         raise HTTPException(
             status_code=403,
             detail=f"Team is {team.status.value.lower()}. Please contact organizers."

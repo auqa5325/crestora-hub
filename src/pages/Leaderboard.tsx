@@ -50,6 +50,10 @@ const Leaderboard = () => {
   const [emailRecipients, setEmailRecipients] = useState<string>('');
   const [eventName, setEventName] = useState<string>("Crestora'25");
 
+  // Team scores modal state
+  const [selectedTeam, setSelectedTeam] = useState<LeaderboardTeam | null>(null);
+  const [isTeamScoresModalOpen, setIsTeamScoresModalOpen] = useState(false);
+
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
@@ -114,6 +118,18 @@ const Leaderboard = () => {
     staleTime: 30 * 1000, // 30 seconds
   });
 
+  // Fetch team scores when a team is selected (with aggressive caching)
+  const { data: teamScores, isLoading: teamScoresLoading } = useQuery({
+    queryKey: ['team-scores', selectedTeam?.team_id],
+    queryFn: () => selectedTeam ? apiService.getTeamScoresForTeam(selectedTeam.team_id) : Promise.resolve([]),
+    enabled: !!selectedTeam,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+    staleTime: 5 * 60 * 1000, // 5 minutes - scores don't change frequently
+    gcTime: 10 * 60 * 1000, // 10 minutes - keep in cache longer
+    refetchOnMount: false, // Don't refetch if data exists in cache
+  });
+
   // Update weight mutation - optimized for batch updates
   const updateWeightMutation = useMutation({
     mutationFn: ({ roundId, weight }: { roundId: number; weight: number }) =>
@@ -148,7 +164,8 @@ const Leaderboard = () => {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['teams'] }),
         queryClient.invalidateQueries({ queryKey: ['leaderboard'] }),
-        queryClient.invalidateQueries({ queryKey: ['evaluated-rounds'] })
+        queryClient.invalidateQueries({ queryKey: ['evaluated-rounds'] }),
+        queryClient.invalidateQueries({ queryKey: ['team-scores'] }) // Invalidate team scores cache
       ]);
       
       // Close modals
@@ -330,6 +347,20 @@ const Leaderboard = () => {
   useEffect(() => {
     setCurrentPage(1);
   }, [leaderboard.length]);
+
+  // Prefetch team scores for top 3 teams to improve UX
+  useEffect(() => {
+    if (leaderboard.length > 0) {
+      const topTeams = leaderboard.slice(0, 3);
+      topTeams.forEach(team => {
+        queryClient.prefetchQuery({
+          queryKey: ['team-scores', team.team_id],
+          queryFn: () => apiService.getTeamScoresForTeam(team.team_id),
+          staleTime: 5 * 60 * 1000, // 5 minutes
+        });
+      });
+    }
+  }, [leaderboard, queryClient]);
 
   const getRankIcon = (rank: number) => {
     switch (rank) {
@@ -565,10 +596,10 @@ const Leaderboard = () => {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-green-600">
-                {leaderboard.length > 0 ? Math.max(...leaderboard.map(t => t.weighted_average)) : 0}
+                {leaderboard.length > 0 ? Math.max(...leaderboard.map(t => t.final_score)) : 0}
               </div>
               <p className="text-xs text-muted-foreground">
-                Highest weighted average score
+                Highest weighted score
               </p>
             </CardContent>
           </Card>
@@ -582,14 +613,14 @@ const Leaderboard = () => {
                 {(() => {
                   if (leaderboard.length === 0) return 0;
                   
-                  // Get all non-zero weighted average scores
+                  // Get all non-zero weighted scores
                   const nonZeroScores = leaderboard
-                    .map(team => team.weighted_average)
+                    .map(team => team.final_score)
                     .filter(score => score > 0);
                   
                   if (nonZeroScores.length === 0) return 0;
                   
-                  // Calculate average of non-zero weighted average scores
+                  // Calculate average of non-zero weighted scores
                   const average = nonZeroScores.reduce((sum, score) => sum + score, 0) / nonZeroScores.length;
                   return Math.round(average);
                 })()}
@@ -631,13 +662,13 @@ const Leaderboard = () => {
               </CardHeader>
               <CardContent className="text-center space-y-2">
                 <div className="text-3xl font-bold text-primary">
-                  {team.weighted_average}
+                  {team.final_score}
                 </div>
                 <div className="text-sm text-muted-foreground">
-                  Weighted Average
+                  Weighted Score
                 </div>
                 <div className="text-xs text-muted-foreground">
-                  Normalized: {team.normalized_score || team.final_score}
+                  Percentile: {team.normalized_score?.toFixed(1) || '0.0'}%
                 </div>
                 <div className="flex justify-center">
                   <Badge variant="outline" className={getStatusColor(team.status)}>
@@ -761,7 +792,7 @@ const Leaderboard = () => {
                 Team Shortlisting
               </CardTitle>
               <CardDescription>
-                Shortlist teams based on their overall scores (weighted average across all evaluated and frozen rounds)
+                Shortlist teams based on their overall scores (weighted scores across all evaluated and frozen rounds)
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -821,13 +852,20 @@ const Leaderboard = () => {
               </div>
             </CardTitle>
             <CardDescription>
-              Complete rankings of all teams (weighted average scores)
+              Complete rankings of all teams (weighted scores)
             </CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
               {paginatedLeaderboard.map((team) => (
-                <div key={team.team_id} className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-4 border rounded-lg hover:bg-gray-50 transition-colors gap-3">
+                <div 
+                  key={team.team_id} 
+                  className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-4 border rounded-lg hover:bg-gray-50 transition-colors gap-3 cursor-pointer"
+                  onClick={() => {
+                    setSelectedTeam(team);
+                    setIsTeamScoresModalOpen(true);
+                  }}
+                >
                   <div className="flex items-center gap-4">
                     <div className="flex items-center justify-center w-8 flex-shrink-0">
                       {getRankIcon(team.rank)}
@@ -847,13 +885,13 @@ const Leaderboard = () => {
                   </div>
                   <div className="text-left sm:text-right flex-shrink-0">
                     <div className="text-2xl font-bold text-primary">
-                      {team.weighted_average}
+                      {team.final_score}
                     </div>
                     <div className="text-sm text-muted-foreground">
-                      Weighted Average
+                      Weighted Score
                     </div>
                     <div className="text-xs text-muted-foreground">
-                      Normalized: {team.normalized_score || team.final_score}
+                      Percentile: {team.normalized_score?.toFixed(1) || '0.0'}%
                     </div>
                     <div className="text-xs text-muted-foreground">
                       Rounds: {team.rounds_completed}
@@ -1175,6 +1213,120 @@ const Leaderboard = () => {
             </CardContent>
           </Card>
         )}
+
+        {/* Team Scores Modal */}
+        <Dialog open={isTeamScoresModalOpen} onOpenChange={setIsTeamScoresModalOpen}>
+          <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Trophy className="h-5 w-5" />
+                Round Scores - {selectedTeam?.team_name}
+              </DialogTitle>
+              <DialogDescription>
+                Detailed round-by-round scores for {selectedTeam?.leader_name}
+                <br />
+                <span className="font-mono text-sm bg-muted px-2 py-1 rounded mt-1 inline-block">
+                  {selectedTeam?.team_id}
+                </span>
+              </DialogDescription>
+            </DialogHeader>
+            
+            {teamScoresLoading && !teamScores ? (
+              <div className="flex items-center justify-center py-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                <span className="ml-2">Loading scores...</span>
+              </div>
+            ) : teamScores && Array.isArray(teamScores) && teamScores.length > 0 ? (
+              <div className="space-y-4">
+                {/* Team Summary */}
+                <div className="space-y-4">
+                  {/* Team Info */}
+                  <div className="p-4 bg-muted rounded-lg">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                      <div>
+                        <h3 className="font-semibold text-lg">{selectedTeam?.team_name}</h3>
+                        <p className="text-sm text-muted-foreground">{selectedTeam?.leader_name}</p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-muted-foreground">Team Code:</span>
+                        <span className="font-mono text-sm bg-background px-2 py-1 rounded border">
+                          {selectedTeam?.team_id}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  {/* Stats Grid */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div className="text-center p-4 bg-muted rounded-lg">
+                      <div className="text-2xl font-bold text-primary">{selectedTeam?.final_score}</div>
+                      <div className="text-sm text-muted-foreground">Weighted Score</div>
+                    </div>
+                    <div className="text-center p-4 bg-muted rounded-lg">
+                      <div className="text-2xl font-bold">{selectedTeam?.normalized_score?.toFixed(1) || '0.0'}%</div>
+                      <div className="text-sm text-muted-foreground">Percentile</div>
+                    </div>
+                    <div className="text-center p-4 bg-muted rounded-lg">
+                      <div className="text-2xl font-bold">{selectedTeam?.rounds_completed}</div>
+                      <div className="text-sm text-muted-foreground">Rounds Completed</div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Round Scores */}
+                <div className="space-y-3">
+                  {Array.isArray(teamScores) && teamScores.map((score) => (
+                    <Card key={score.id} className="border-l-4 border-l-primary">
+                      <CardContent className="p-4">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                          <div className="space-y-1">
+                            <label className="text-sm font-medium text-muted-foreground">Round ID</label>
+                            <p className="font-medium">#{score.round_id}</p>
+                          </div>
+                          <div className="space-y-1">
+                            <label className="text-sm font-medium text-muted-foreground">Score</label>
+                            <p className="font-medium text-lg text-primary">{score.score.toFixed(1)}</p>
+                          </div>
+                          <div className="space-y-1">
+                            <label className="text-sm font-medium text-muted-foreground">Raw Score</label>
+                            <p className="font-medium">{score.raw_total_score.toFixed(1)}</p>
+                          </div>
+                          <div className="space-y-1">
+                            <label className="text-sm font-medium text-muted-foreground">Present</label>
+                            <Badge variant={score.is_present ? "default" : "destructive"}>
+                              {score.is_present ? "Yes" : "No"}
+                            </Badge>
+                          </div>
+                        </div>
+                        {score.criteria_scores && Object.keys(score.criteria_scores).length > 0 && (
+                          <div className="mt-3 pt-3 border-t">
+                            <label className="text-sm font-medium text-muted-foreground">Criteria Breakdown</label>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 mt-2">
+                              {Object.entries(score.criteria_scores).map(([criterion, points]) => (
+                                <div key={criterion} className="flex justify-between text-sm">
+                                  <span className="text-muted-foreground">{criterion}:</span>
+                                  <span className="font-medium">{String(points)}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div className="text-center py-8">
+                <Trophy className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                <h3 className="text-lg font-semibold mb-2">No Scores Found</h3>
+                <p className="text-muted-foreground">
+                  This team hasn't participated in any rounds yet.
+                </p>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
 
       </div>
     </DashboardLayout>
