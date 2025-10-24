@@ -476,7 +476,15 @@ const RoundEvaluation = () => {
   // Save criteria
   const saveCriteria = () => {
     if (selectedRoundId) {
-      updateCriteriaMutation.mutate(criteria);
+      // Validate criteria before saving
+      const validCriteria = criteria.map(criterion => ({
+        name: criterion.name.trim(),
+        max_points: typeof criterion.max_points === 'string' ? 
+          (criterion.max_points === '' ? 10 : parseInt(criterion.max_points) || 10) : 
+          criterion.max_points
+      }));
+      
+      updateCriteriaMutation.mutate(validCriteria);
     }
   };
 
@@ -1306,7 +1314,17 @@ const RoundEvaluation = () => {
                       type="number"
                       min="1"
                       value={criterion.max_points}
-                      onChange={(e) => updateCriterion(index, 'max_points', parseInt(e.target.value) || 1)}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        if (value === '') {
+                          updateCriterion(index, 'max_points', '');
+                        } else {
+                          const numValue = parseInt(value);
+                          if (!isNaN(numValue) && numValue > 0) {
+                            updateCriterion(index, 'max_points', numValue);
+                          }
+                        }
+                      }}
                     />
                   </div>
                   <Button
