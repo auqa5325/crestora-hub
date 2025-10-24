@@ -8,7 +8,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Users, Search, Filter, Mail, Phone, User, Calendar, Trophy, Eye, Edit } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiService, Team, TeamStats, TeamScore } from "@/services/api";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 
@@ -43,12 +43,19 @@ const Teams = () => {
   });
 
   // Fetch team scores when a team is selected
-  const { data: scores } = useQuery<TeamScore[]>({
+  const { data: scores, isLoading: scoresLoading } = useQuery<TeamScore[]>({
     queryKey: ['team-scores', selectedTeam?.team_id],
     queryFn: () => selectedTeam ? apiService.getTeamScoresForTeam(selectedTeam.team_id) : Promise.resolve([]),
     enabled: !!selectedTeam,
     refetchInterval: 30000,
   });
+
+  // Update teamScores when scores data changes
+  useEffect(() => {
+    if (scores) {
+      setTeamScores(scores);
+    }
+  }, [scores]);
 
   // Update team status mutation
   const updateStatusMutation = useMutation({
@@ -367,7 +374,6 @@ const Teams = () => {
               onClick={() => {
                 if (user?.role === 'admin') {
                   setSelectedTeam(team);
-                  setTeamScores(scores || []);
                   setIsDetailModalOpen(true);
                 }
               }}
@@ -567,12 +573,17 @@ const Teams = () => {
                 </div>
 
                 {/* Round Scores */}
-                {teamScores.length > 0 && (
-                  <div className="space-y-4">
-                    <h3 className="text-lg font-semibold flex items-center gap-2">
-                      <Trophy className="h-5 w-5" />
-                      Round Scores
-                    </h3>
+                <div className="space-y-4">
+                  <h3 className="text-lg font-semibold flex items-center gap-2">
+                    <Trophy className="h-5 w-5" />
+                    Round Scores
+                  </h3>
+                  {scoresLoading ? (
+                    <div className="text-center py-4 text-muted-foreground">
+                      <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary mx-auto mb-2"></div>
+                      Loading scores...
+                    </div>
+                  ) : teamScores.length > 0 ? (
                     <div className="space-y-3">
                       {teamScores.map((score) => (
                         <Card key={score.id} className="border-l-4 border-l-primary">
@@ -614,8 +625,12 @@ const Teams = () => {
                         </Card>
                       ))}
                     </div>
-                  </div>
-                )}
+                  ) : (
+                    <div className="text-center py-4 text-muted-foreground">
+                      No scores available for this team.
+                    </div>
+                  )}
+                </div>
 
                 {/* Team ID and Additional Info */}
                 <div className="space-y-4">
@@ -697,3 +712,4 @@ const Teams = () => {
 };
 
 export default Teams;
+

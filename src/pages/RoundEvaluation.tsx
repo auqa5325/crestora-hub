@@ -27,7 +27,8 @@ import {
   Search,
   Mail,
   Send,
-  User
+  User,
+  Globe
 } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiService, Team, Event, TeamScore, RoundStats } from "@/services/api";
@@ -35,6 +36,31 @@ import { useState, useEffect, useRef } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { useNavigate, useSearchParams } from "react-router-dom";
+
+// ReadMoreText Component
+const ReadMoreText = ({ text, maxLength = 100 }: { text: string; maxLength?: number }) => {
+  const [isExpanded, setIsExpanded] = useState(false);
+  
+  if (text.length <= maxLength) {
+    return <span>{text}</span>;
+  }
+  
+  const truncatedText = text.substring(0, maxLength);
+  const displayText = isExpanded ? text : truncatedText;
+  
+  return (
+    <span>
+      {displayText}
+      {!isExpanded && "..."}
+      <button
+        onClick={() => setIsExpanded(!isExpanded)}
+        className="ml-1 text-blue-600 hover:text-blue-800 underline text-xs"
+      >
+        {isExpanded ? "Read Less" : "Read More"}
+      </button>
+    </span>
+  );
+};
 
 interface Criteria {
   name: string;
@@ -656,6 +682,40 @@ const RoundEvaluation = () => {
             <p className="text-sm text-muted-foreground">
               Club: {selectedRound.club || 'No club assigned'}
             </p>
+            {selectedRound.description && (
+              <p className="text-sm text-muted-foreground mt-1">
+                {selectedRound.description}
+              </p>
+            )}
+            {selectedRound.extended_description && (
+              <div className="text-sm text-muted-foreground mt-1">
+                <span className="font-medium">Details:</span> 
+                <ReadMoreText text={selectedRound.extended_description} maxLength={120} />
+              </div>
+            )}
+            {(selectedRound.form_link || selectedRound.contact) && (
+              <div className="mt-2 space-y-1">
+                {selectedRound.form_link && (
+                  <div className="flex items-center gap-1 text-xs">
+                    <Globe className="h-3 w-3" />
+                    <a 
+                      href={selectedRound.form_link} 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="text-blue-600 hover:text-blue-800 underline"
+                    >
+                      Registration Form
+                    </a>
+                  </div>
+                )}
+                {selectedRound.contact && (
+                  <div className="flex items-center gap-1 text-xs">
+                    <Users className="h-3 w-3" />
+                    <span>Contact: {selectedRound.contact}</span>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
           
           {/* Action Buttons - Responsive Layout */}

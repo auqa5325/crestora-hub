@@ -4,7 +4,7 @@ from typing import List, Optional
 from app.database import get_db
 from app.models.team import Team, TeamMember, TeamStatus
 from app.models.team_score import TeamScore
-from app.models.rounds import UnifiedEvent
+from app.models.rounds import UnifiedEvent, EventType, EventStatus, EventMode
 from app.models.round_weight import RoundWeight
 from app.schemas.team import TeamInDB as TeamSchema, TeamStats, TeamMemberInDB
 from app.schemas.team_score import TeamScoreInDB
@@ -483,6 +483,98 @@ async def get_public_leaderboard(
         "displayed_teams": min(limit, len(leaderboard))
     }
 
+@router.get("/events")
+async def get_public_events(
+    skip: int = Query(0, ge=0, description="Number of events to skip"),
+    limit: int = Query(100, ge=1, le=1000, description="Maximum number of events to return"),
+    event_type: Optional[EventType] = Query(None, description="Filter by event type (title, rolling)"),
+    status: Optional[EventStatus] = Query(None, description="Filter by event status (upcoming, in_progress, completed)"),
+    db: Session = Depends(get_db)
+):
+    """
+    Get all events with rounds - PUBLIC ACCESS (No authentication required)
+    
+    This endpoint is publicly accessible and doesn't require authentication.
+    Returns all events with their associated rounds and details.
+    """
+    try:
+        # Get only main events (round_number = 0)
+        query = db.query(UnifiedEvent).filter(UnifiedEvent.round_number == 0)
+        
+        if event_type:
+            query = query.filter(UnifiedEvent.type == event_type)
+        
+        if status:
+            query = query.filter(UnifiedEvent.status == status)
+        
+        main_events = query.offset(skip).limit(limit).all()
+        
+        # Build response with rounds
+        result = []
+        for event in main_events:
+            # Get all rounds for this event
+            rounds = db.query(UnifiedEvent).filter(
+                UnifiedEvent.event_id == event.event_id,
+                UnifiedEvent.round_number > 0
+            ).order_by(UnifiedEvent.round_number).all()
+            
+            # Convert rounds to public format
+            rounds_data = []
+            for round_data in rounds:
+                rounds_data.append({
+                    "id": round_data.id,
+                    "event_id": round_data.event_id,
+                    "round_number": round_data.round_number,
+                    "name": round_data.name,
+                    "club": round_data.club,
+                    "mode": round_data.mode.value if round_data.mode else None,
+                    "date": round_data.date.isoformat() if round_data.date else None,
+                    "description": round_data.description,
+                    "extended_description": round_data.extended_description,
+                    "form_link": round_data.form_link,
+                    "contact": round_data.contact,
+                    "status": round_data.status.value,
+                    "venue": round_data.venue,
+                    "is_frozen": round_data.is_frozen,
+                    "is_evaluated": round_data.is_evaluated,
+                    "criteria": round_data.criteria,
+                    "created_at": round_data.created_at.isoformat(),
+                    "updated_at": round_data.updated_at.isoformat() if round_data.updated_at else None
+                })
+            
+            # Convert main event to public format
+            event_data = {
+                "id": event.id,
+                "event_id": event.event_id,
+                "event_code": event.event_code,
+                "name": event.name,
+                "type": event.type.value,
+                "start_date": event.start_date.isoformat() if event.start_date else None,
+                "end_date": event.end_date.isoformat() if event.end_date else None,
+                "venue": event.venue,
+                "description": event.description,
+                "extended_description": event.extended_description,
+                "form_link": event.form_link,
+                "contact": event.contact,
+                "status": event.status.value,
+                "created_at": event.created_at.isoformat(),
+                "updated_at": event.updated_at.isoformat() if event.updated_at else None,
+                "rounds": rounds_data
+            }
+            
+            result.append(event_data)
+        
+        return {
+            "events": result,
+            "total": len(result),
+            "skip": skip,
+            "limit": limit,
+            "message": "Events retrieved successfully"
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error retrieving events: {str(e)}")
+
 @router.get("/health")
 async def public_health_check():
     """
@@ -504,6 +596,7 @@ async def public_health_check():
             "GET /api/public/teams/{team_id} - Get specific team",
             "GET /api/public/teams/{team_id}/scores - Get team scores",
             "GET /api/public/leaderboard - Get leaderboard",
+            "GET /api/public/events - Get all events with rounds",
             "GET /api/public/health - Health check"
         ],
         "authentication_required": False

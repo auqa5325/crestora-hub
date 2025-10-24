@@ -376,6 +376,9 @@ async def get_event(event_id: str, db: Session = Depends(get_db)):
             "club": round_data.club,
             "date": round_data.date,
             "description": round_data.description,
+            "extended_description": round_data.extended_description,
+            "form_link": round_data.form_link,
+            "contact": round_data.contact,
             "status": round_data.status,
             "created_at": round_data.created_at,
             "updated_at": round_data.updated_at

@@ -46,6 +46,10 @@ interface RoundFormData {
   date: string;
   venue: string;
   description: string;
+  extended_description: string;
+  form_link: string;
+  contact: string;
+  status: 'upcoming' | 'in_progress' | 'completed';
   criteria: Array<{name: string, max_points: number}>;
 }
 
@@ -73,6 +77,10 @@ const PDARoundManagement = () => {
     date: "",
     venue: "",
     description: "",
+    extended_description: "",
+    form_link: "",
+    contact: "",
+    status: "upcoming",
     criteria: [{ name: "Overall Performance", max_points: 100 }]
   });
 
@@ -191,6 +199,10 @@ const PDARoundManagement = () => {
       date: "",
       venue: "",
       description: "",
+      extended_description: "",
+      form_link: "",
+      contact: "",
+      status: "upcoming",
       criteria: [{ name: "Overall Performance", max_points: 100 }]
     });
   };
@@ -224,6 +236,10 @@ const PDARoundManagement = () => {
       date: round.date || "",
       venue: (round as any).venue || "",
       description: round.description || "",
+      extended_description: round.extended_description || "",
+      form_link: round.form_link || "",
+      contact: round.contact || "",
+      status: round.status || "upcoming",
       criteria: round.criteria || [{ name: "Overall Performance", max_points: 100 }]
     });
     setIsEditModalOpen(true);
@@ -238,7 +254,11 @@ const PDARoundManagement = () => {
       mode: formData.mode,
       club: formData.club,
       date: formData.date || undefined,
-      description: formData.description
+      description: formData.description,
+      extended_description: formData.extended_description,
+      form_link: formData.form_link,
+      contact: formData.contact,
+      status: formData.status
     };
 
     updateRoundMutation.mutate({
@@ -702,6 +722,54 @@ const PDARoundManagement = () => {
                 />
               </div>
               
+              <div>
+                <Label htmlFor="extended_description">Extended Description</Label>
+                <Textarea
+                  id="extended_description"
+                  value={formData.extended_description}
+                  onChange={(e) => setFormData(prev => ({ ...prev, extended_description: e.target.value }))}
+                  placeholder="Detailed description of the round..."
+                  rows={3}
+                />
+              </div>
+              
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="form_link">Form Link</Label>
+                  <Input
+                    id="form_link"
+                    value={formData.form_link}
+                    onChange={(e) => setFormData(prev => ({ ...prev, form_link: e.target.value }))}
+                    placeholder="https://forms.google.com/..."
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="contact">Contact</Label>
+                  <Input
+                    id="contact"
+                    value={formData.contact}
+                    onChange={(e) => setFormData(prev => ({ ...prev, contact: e.target.value }))}
+                    placeholder="Contact person or email"
+                  />
+                </div>
+              </div>
+              
+              <div>
+                <Label htmlFor="status">Status</Label>
+                <Select value={formData.status} onValueChange={(value: 'upcoming' | 'in_progress' | 'completed') => 
+                  setFormData(prev => ({ ...prev, status: value }))
+                }>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="upcoming">Upcoming</SelectItem>
+                    <SelectItem value="in_progress">In Progress</SelectItem>
+                    <SelectItem value="completed">Completed</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              
               {/* Criteria Section */}
               <div>
                 <div className="flex items-center justify-between mb-2">
@@ -837,6 +905,54 @@ const PDARoundManagement = () => {
                   placeholder="Describe the round..."
                   rows={3}
                 />
+              </div>
+              
+              <div>
+                <Label htmlFor="edit-extended_description">Extended Description</Label>
+                <Textarea
+                  id="edit-extended_description"
+                  value={formData.extended_description}
+                  onChange={(e) => setFormData(prev => ({ ...prev, extended_description: e.target.value }))}
+                  placeholder="Detailed description of the round..."
+                  rows={3}
+                />
+              </div>
+              
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="edit-form_link">Form Link</Label>
+                  <Input
+                    id="edit-form_link"
+                    value={formData.form_link}
+                    onChange={(e) => setFormData(prev => ({ ...prev, form_link: e.target.value }))}
+                    placeholder="https://forms.google.com/..."
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="edit-contact">Contact</Label>
+                  <Input
+                    id="edit-contact"
+                    value={formData.contact}
+                    onChange={(e) => setFormData(prev => ({ ...prev, contact: e.target.value }))}
+                    placeholder="Contact person or email"
+                  />
+                </div>
+              </div>
+              
+              <div>
+                <Label htmlFor="edit-status">Status</Label>
+                <Select value={formData.status} onValueChange={(value: 'upcoming' | 'in_progress' | 'completed') => 
+                  setFormData(prev => ({ ...prev, status: value }))
+                }>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="upcoming">Upcoming</SelectItem>
+                    <SelectItem value="in_progress">In Progress</SelectItem>
+                    <SelectItem value="completed">Completed</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
               
               {/* Criteria Section */}

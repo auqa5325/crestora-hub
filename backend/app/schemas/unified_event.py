@@ -16,6 +16,9 @@ class UnifiedEventBase(BaseModel):
     end_date: Optional[date] = None
     venue: Optional[str] = Field(None, max_length=200)
     description: Optional[str] = None
+    extended_description: Optional[str] = None
+    form_link: Optional[str] = Field(None, max_length=500)
+    contact: Optional[str] = Field(None, max_length=200)
     status: EventStatus = EventStatus.UPCOMING
     # Round-specific fields
     round_code: Optional[str] = Field(None, max_length=50)
@@ -40,6 +43,9 @@ class UnifiedEventUpdate(BaseModel):
     end_date: Optional[date] = None
     venue: Optional[str] = Field(None, max_length=200)
     description: Optional[str] = None
+    extended_description: Optional[str] = None
+    form_link: Optional[str] = Field(None, max_length=500)
+    contact: Optional[str] = Field(None, max_length=200)
     status: Optional[EventStatus] = None
     round_code: Optional[str] = Field(None, max_length=50)
     participated_count: Optional[int] = None
@@ -65,6 +71,9 @@ class UnifiedEventInDB(BaseModel):
     end_date: Optional[date] = None
     venue: Optional[str] = Field(None, max_length=200)
     description: Optional[str] = None
+    extended_description: Optional[str] = None
+    form_link: Optional[str] = Field(None, max_length=500)
+    contact: Optional[str] = Field(None, max_length=200)
     status: EventStatus = EventStatus.UPCOMING
     round_code: Optional[str] = Field(None, max_length=50)
     participated_count: int = 0
@@ -92,6 +101,9 @@ class RoundInDB(BaseModel):
     club: Optional[str] = None
     date: Optional[date] = None
     description: Optional[str] = None
+    extended_description: Optional[str] = None
+    form_link: Optional[str] = None
+    contact: Optional[str] = None
     status: EventStatus
     # Round-specific fields
     round_code: Optional[str] = None
@@ -120,6 +132,9 @@ class EventWithRounds(BaseModel):
     end_date: Optional[date] = None
     venue: Optional[str] = None
     description: Optional[str] = None
+    extended_description: Optional[str] = None
+    form_link: Optional[str] = None
+    contact: Optional[str] = None
     status: EventStatus
     created_at: datetime
     updated_at: Optional[datetime] = None

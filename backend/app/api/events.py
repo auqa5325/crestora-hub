@@ -48,6 +48,9 @@ async def get_events(
                 "mode": round_data.mode.value if round_data.mode else None,  # Map mode to string
                 "date": round_data.date.isoformat() if round_data.date else None,
                 "description": round_data.description,
+                "extended_description": round_data.extended_description,
+                "form_link": round_data.form_link,
+                "contact": round_data.contact,
                 "status": round_data.status.value,
                 "round_code": round_data.round_code,
                 "participated_count": round_data.participated_count,
@@ -74,6 +77,9 @@ async def get_events(
             "end_date": event.end_date.isoformat() if event.end_date else None,
             "venue": event.venue,
             "description": event.description,
+            "extended_description": event.extended_description,
+            "form_link": event.form_link,
+            "contact": event.contact,
             "created_at": event.created_at.isoformat() if event.created_at else None,
             "updated_at": event.updated_at.isoformat() if event.updated_at else None,
             "rounds": rounds_data

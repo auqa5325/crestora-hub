@@ -32,6 +32,31 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
 
+// ReadMoreText Component
+const ReadMoreText = ({ text, maxLength = 100 }: { text: string; maxLength?: number }) => {
+  const [isExpanded, setIsExpanded] = useState(false);
+  
+  if (text.length <= maxLength) {
+    return <span>{text}</span>;
+  }
+  
+  const truncatedText = text.substring(0, maxLength);
+  const displayText = isExpanded ? text : truncatedText;
+  
+  return (
+    <span>
+      {displayText}
+      {!isExpanded && "..."}
+      <button
+        onClick={() => setIsExpanded(!isExpanded)}
+        className="ml-1 text-blue-600 hover:text-blue-800 underline text-xs"
+      >
+        {isExpanded ? "Read Less" : "Read More"}
+      </button>
+    </span>
+  );
+};
+
 interface Round {
   id: number;
   event_id: string;
@@ -41,6 +66,9 @@ interface Round {
   club?: string;
   date?: string;
   description?: string;
+  extended_description?: string;
+  form_link?: string;
+  contact?: string;
   status: 'upcoming' | 'in_progress' | 'completed';
   is_frozen: boolean;
   is_evaluated: boolean;
@@ -599,6 +627,35 @@ const RoundsDashboard = () => {
                         <p className="text-sm text-muted-foreground mt-2 break-words">
                           {round.description}
                         </p>
+                      )}
+                      {round.extended_description && (
+                        <div className="text-sm text-muted-foreground mt-1 break-words">
+                          <span className="font-medium">Details:</span> 
+                          <ReadMoreText text={round.extended_description} maxLength={100} />
+                        </div>
+                      )}
+                      {(round.form_link || round.contact) && (
+                        <div className="mt-2 space-y-1">
+                          {round.form_link && (
+                            <div className="flex items-center gap-1 text-xs">
+                              <Globe className="h-3 w-3" />
+                              <a 
+                                href={round.form_link} 
+                                target="_blank" 
+                                rel="noopener noreferrer"
+                                className="text-blue-600 hover:text-blue-800 underline break-all"
+                              >
+                                Registration Form
+                              </a>
+                            </div>
+                          )}
+                          {round.contact && (
+                            <div className="flex items-center gap-1 text-xs">
+                              <Users className="h-3 w-3" />
+                              <span>Contact: {round.contact}</span>
+                            </div>
+                          )}
+                        </div>
                       )}
 
                       {/* Show evaluation statistics for frozen rounds */}

@@ -29,6 +29,31 @@ import { useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 
+// ReadMoreText Component
+const ReadMoreText = ({ text, maxLength = 100 }: { text: string; maxLength?: number }) => {
+  const [isExpanded, setIsExpanded] = useState(false);
+  
+  if (text.length <= maxLength) {
+    return <span>{text}</span>;
+  }
+  
+  const truncatedText = text.substring(0, maxLength);
+  const displayText = isExpanded ? text : truncatedText;
+  
+  return (
+    <span>
+      {displayText}
+      {!isExpanded && "..."}
+      <button
+        onClick={() => setIsExpanded(!isExpanded)}
+        className="ml-1 text-blue-600 hover:text-blue-800 underline text-xs"
+      >
+        {isExpanded ? "Read Less" : "Read More"}
+      </button>
+    </span>
+  );
+};
+
 const Events = () => {
   const { user } = useAuth();
   const queryClient = useQueryClient();
@@ -654,6 +679,39 @@ const Events = () => {
                         <p className="text-sm mt-1">{selectedEvent.description}</p>
                       </div>
                     )}
+                    {selectedEvent.extended_description && (
+                      <div>
+                        <Label className="text-sm font-medium text-muted-foreground">Extended Description</Label>
+                        <div className="text-sm mt-1">
+                          <ReadMoreText text={selectedEvent.extended_description} maxLength={150} />
+                        </div>
+                      </div>
+                    )}
+                    {(selectedEvent.form_link || selectedEvent.contact) && (
+                      <div className="space-y-2">
+                        {selectedEvent.form_link && (
+                          <div>
+                            <Label className="text-sm font-medium text-muted-foreground">Registration Form</Label>
+                            <div className="mt-1">
+                              <a 
+                                href={selectedEvent.form_link} 
+                                target="_blank" 
+                                rel="noopener noreferrer"
+                                className="text-blue-600 hover:text-blue-800 underline text-sm"
+                              >
+                                {selectedEvent.form_link}
+                              </a>
+                            </div>
+                          </div>
+                        )}
+                        {selectedEvent.contact && (
+                          <div>
+                            <Label className="text-sm font-medium text-muted-foreground">Contact</Label>
+                            <p className="text-sm mt-1">{selectedEvent.contact}</p>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </TabsContent>
                 
@@ -709,6 +767,35 @@ const Events = () => {
                                   <p className="text-sm text-muted-foreground mt-2">
                                     {round.description}
                                   </p>
+                                )}
+                                {round.extended_description && (
+                                  <div className="text-sm text-muted-foreground mt-1">
+                                    <span className="font-medium">Details:</span> 
+                                    <ReadMoreText text={round.extended_description} maxLength={100} />
+                                  </div>
+                                )}
+                                {(round.form_link || round.contact) && (
+                                  <div className="mt-2 space-y-1">
+                                    {round.form_link && (
+                                      <div className="flex items-center gap-1 text-xs">
+                                        <Globe className="h-3 w-3" />
+                                        <a 
+                                          href={round.form_link} 
+                                          target="_blank" 
+                                          rel="noopener noreferrer"
+                                          className="text-blue-600 hover:text-blue-800 underline"
+                                        >
+                                          Registration Form
+                                        </a>
+                                      </div>
+                                    )}
+                                    {round.contact && (
+                                      <div className="flex items-center gap-1 text-xs">
+                                        <Users className="h-3 w-3" />
+                                        <span>Contact: {round.contact}</span>
+                                      </div>
+                                    )}
+                                  </div>
                                 )}
                               </div>
                               {/* Disabled for now */}

@@ -37,6 +37,9 @@ export interface Event {
   end_date?: string;
   venue?: string;
   description?: string;
+  extended_description?: string;
+  form_link?: string;
+  contact?: string;
   status: 'upcoming' | 'in_progress' | 'completed';
   created_at: string;
   updated_at?: string;
@@ -53,6 +56,9 @@ export interface Round {
   club?: string;
   date?: string;
   description?: string;
+  extended_description?: string;
+  form_link?: string;
+  contact?: string;
   status: 'upcoming' | 'in_progress' | 'completed';
   is_frozen: boolean;
   is_evaluated: boolean;
