@@ -8,6 +8,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Users, Search, Filter, Mail, Phone, User, Calendar, Trophy, Eye, Edit } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiService, Team, TeamStats, TeamScore } from "@/services/api";
+import RoundScoreCard from "@/components/RoundScoreCard";
 import { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
@@ -586,43 +587,7 @@ const Teams = () => {
                   ) : teamScores.length > 0 ? (
                     <div className="space-y-3">
                       {teamScores.map((score) => (
-                        <Card key={score.id} className="border-l-4 border-l-primary">
-                          <CardContent className="p-4">
-                            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                              <div className="space-y-1">
-                                <label className="text-sm font-medium text-muted-foreground">Round ID</label>
-                                <p className="font-medium">#{score.round_id}</p>
-                              </div>
-                              <div className="space-y-1">
-                                <label className="text-sm font-medium text-muted-foreground">Score</label>
-                                <p className="font-medium text-lg text-primary">{score.score.toFixed(1)}</p>
-                              </div>
-                              <div className="space-y-1">
-                                <label className="text-sm font-medium text-muted-foreground">Raw Score</label>
-                                <p className="font-medium">{score.raw_total_score.toFixed(1)}</p>
-                              </div>
-                              <div className="space-y-1">
-                                <label className="text-sm font-medium text-muted-foreground">Normalized</label>
-                                <Badge variant={score.is_normalized ? "default" : "secondary"}>
-                                  {score.is_normalized ? "Yes" : "No"}
-                                </Badge>
-                              </div>
-                            </div>
-                            {score.criteria_scores && Object.keys(score.criteria_scores).length > 0 && (
-                              <div className="mt-3 pt-3 border-t">
-                                <label className="text-sm font-medium text-muted-foreground">Criteria Breakdown</label>
-                                <div className="grid grid-cols-2 md:grid-cols-3 gap-2 mt-2">
-                                  {Object.entries(score.criteria_scores).map(([criterion, points]) => (
-                                    <div key={criterion} className="flex justify-between text-sm">
-                                      <span className="text-muted-foreground">{criterion}:</span>
-                                      <span className="font-medium">{points}</span>
-                                    </div>
-                                  ))}
-                                </div>
-                              </div>
-                            )}
-                          </CardContent>
-                        </Card>
+                        <RoundScoreCard key={score.id} score={score} />
                       ))}
                     </div>
                   ) : (

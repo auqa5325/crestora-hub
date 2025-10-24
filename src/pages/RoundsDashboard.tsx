@@ -72,6 +72,7 @@ interface Round {
   status: 'upcoming' | 'in_progress' | 'completed';
   is_frozen: boolean;
   is_evaluated: boolean;
+  is_wildcard?: boolean;
   max_score?: number;
   min_score?: number;
   avg_score?: number;
@@ -224,7 +225,13 @@ const RoundsDashboard = () => {
 
   // Handle round evaluation navigation
   const handleEvaluateRound = (roundId: number) => {
-    navigate(`/round-evaluation?roundId=${roundId}`);
+    // Find the round to check if it's a wildcard round
+    const round = allRounds.find(r => r.id === roundId);
+    if (round?.is_wildcard) {
+      navigate(`/wildcard-round-evaluation?roundId=${roundId}`);
+    } else {
+      navigate(`/round-evaluation?roundId=${roundId}`);
+    }
   };
 
 
@@ -593,6 +600,12 @@ const RoundsDashboard = () => {
                           {round.is_evaluated && (
                             <Badge variant="secondary" className="bg-green-100 text-green-800 text-xs">
                               Evaluated
+                            </Badge>
+                          )}
+                          {round.is_wildcard && (
+                            <Badge variant="secondary" className="bg-orange-100 text-orange-800 text-xs">
+                              <Target className="h-3 w-3 mr-1" />
+                              Wildcard
                             </Badge>
                           )}
                         </div>

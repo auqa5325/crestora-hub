@@ -453,6 +453,7 @@ class ApiService {
     date?: string;
     description?: string;
     round_code?: string;
+    is_wildcard?: boolean;
   }): Promise<Round> {
     return this.request<Round>('/rounds/rounds', {
       method: 'POST',
@@ -466,8 +467,12 @@ class ApiService {
     club?: string;
     date?: string;
     description?: string;
+    extended_description?: string;
+    form_link?: string;
+    contact?: string;
     status?: 'upcoming' | 'in_progress' | 'completed';
     round_code?: string;
+    is_wildcard?: boolean;
   }): Promise<Round> {
     return this.request<Round>(`/rounds/${eventId}/${roundNumber}`, {
       method: 'PUT',
@@ -497,6 +502,10 @@ class ApiService {
 
   async getRoundEvaluations(roundId: number): Promise<TeamScore[]> {
     return this.request<TeamScore[]>(`/rounds/rounds/${roundId}/evaluations`);
+  }
+
+  async checkRoundIsWildcard(roundId: number): Promise<{is_wildcard: boolean}> {
+    return this.request<{is_wildcard: boolean}>(`/rounds/rounds/${roundId}/is-wildcard`);
   }
 
   async evaluateTeam(roundId: number, teamId: string, criteriaScores: Record<string, number>, isPresent: boolean = true, eliminateAbsentees: boolean = true): Promise<TeamScore> {
@@ -620,6 +629,21 @@ class ApiService {
 
   async getTeamScoresForTeam(teamId: string): Promise<TeamScore[]> {
     return this.request<TeamScore[]>(`/teams/${teamId}/scores`);
+  }
+
+  // Round details API
+  async getRoundDetails(roundId: number): Promise<{
+    id: number;
+    name: string;
+    club: string;
+    round_number: number;
+    event_id: string;
+    mode?: string;
+    date?: string;
+    description?: string;
+    is_wildcard: boolean;
+  }> {
+    return this.request(`/rounds/rounds/${roundId}/details`);
   }
 
   // Shortlist API (old per-round method - kept for backwards compatibility)

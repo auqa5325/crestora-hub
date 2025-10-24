@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
@@ -51,6 +52,7 @@ interface RoundFormData {
   contact: string;
   status: 'upcoming' | 'in_progress' | 'completed';
   criteria: Array<{name: string, max_points: number}>;
+  is_wildcard: boolean;
 }
 
 const PDARoundManagement = () => {
@@ -81,7 +83,8 @@ const PDARoundManagement = () => {
     form_link: "",
     contact: "",
     status: "upcoming",
-    criteria: [{ name: "Overall Performance", max_points: 100 }]
+    criteria: [{ name: "Overall Performance", max_points: 100 }],
+    is_wildcard: false
   });
 
   // Check if user is PDA (admin)
@@ -203,7 +206,8 @@ const PDARoundManagement = () => {
       form_link: "",
       contact: "",
       status: "upcoming",
-      criteria: [{ name: "Overall Performance", max_points: 100 }]
+      criteria: [{ name: "Overall Performance", max_points: 100 }],
+      is_wildcard: false
     });
   };
 
@@ -220,7 +224,8 @@ const PDARoundManagement = () => {
       club: formData.club,
       date: formData.date || undefined,
       description: formData.description,
-      criteria: formData.criteria
+      criteria: formData.criteria,
+      is_wildcard: formData.is_wildcard
     };
 
     createRoundMutation.mutate(roundData);
@@ -240,7 +245,8 @@ const PDARoundManagement = () => {
       form_link: round.form_link || "",
       contact: round.contact || "",
       status: round.status || "upcoming",
-      criteria: round.criteria || [{ name: "Overall Performance", max_points: 100 }]
+      criteria: round.criteria || [{ name: "Overall Performance", max_points: 100 }],
+      is_wildcard: (round as any).is_wildcard || false
     });
     setIsEditModalOpen(true);
   };
@@ -258,7 +264,8 @@ const PDARoundManagement = () => {
       extended_description: formData.extended_description,
       form_link: formData.form_link,
       contact: formData.contact,
-      status: formData.status
+      status: formData.status,
+      is_wildcard: formData.is_wildcard
     };
 
     updateRoundMutation.mutate({
@@ -769,6 +776,19 @@ const PDARoundManagement = () => {
                   </SelectContent>
                 </Select>
               </div>
+
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="is_wildcard"
+                  checked={formData.is_wildcard}
+                  onCheckedChange={(checked) => 
+                    setFormData(prev => ({ ...prev, is_wildcard: !!checked }))
+                  }
+                />
+                <Label htmlFor="is_wildcard" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                  Wildcard Round (for eliminated teams)
+                </Label>
+              </div>
               
               {/* Criteria Section */}
               <div>
@@ -953,6 +973,19 @@ const PDARoundManagement = () => {
                     <SelectItem value="completed">Completed</SelectItem>
                   </SelectContent>
                 </Select>
+              </div>
+
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="edit-is_wildcard"
+                  checked={formData.is_wildcard}
+                  onCheckedChange={(checked) => 
+                    setFormData(prev => ({ ...prev, is_wildcard: !!checked }))
+                  }
+                />
+                <Label htmlFor="edit-is_wildcard" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                  Wildcard Round (for eliminated teams)
+                </Label>
               </div>
               
               {/* Criteria Section */}

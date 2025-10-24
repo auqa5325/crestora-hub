@@ -57,6 +57,7 @@ async def get_events(
                 "shortlisted_teams": round_data.shortlisted_teams,
                 "is_evaluated": round_data.is_evaluated,
                 "is_frozen": round_data.is_frozen,
+                "is_wildcard": round_data.is_wildcard,
                 "criteria": round_data.criteria,
                 "max_score": round_data.max_score,
                 "min_score": round_data.min_score,

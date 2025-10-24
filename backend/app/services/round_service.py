@@ -23,17 +23,23 @@ class RoundService:
         self.db.add(db_round)
         self.db.flush()  # Get the ID
         
-        # Initialize team scores for all active teams
-        active_teams = self.db.query(Team).filter(Team.status == TeamStatus.ACTIVE).all()
+        # Initialize team scores based on round type
+        if db_round.is_wildcard:
+            # For wildcard rounds, only initialize scores for eliminated teams
+            teams_to_initialize = self.db.query(Team).filter(Team.status == TeamStatus.ELIMINATED).all()
+        else:
+            # For regular rounds, initialize scores for active teams
+            teams_to_initialize = self.db.query(Team).filter(Team.status == TeamStatus.ACTIVE).all()
         
-        for team in active_teams:
+        for team in teams_to_initialize:
             team_score = TeamScore(
                 team_id=team.team_id,
                 round_id=db_round.id,
                 event_id=db_round.event_id,
                 score=0.0,
                 raw_total_score=0.0,
-                is_normalized=False
+                is_normalized=False,
+                is_present=False if db_round.is_wildcard else True  # Default to absent for wildcard rounds
             )
             self.db.add(team_score)
         
@@ -47,6 +53,15 @@ class RoundService:
         self.db.commit()
         self.db.refresh(db_round)
         return db_round
+
+    def check_round_is_wildcard(self, round_id: int) -> dict:
+        """Check if a round is a wildcard round"""
+        round_obj = self.db.query(UnifiedEvent).filter(UnifiedEvent.id == round_id).first()
+        if not round_obj:
+            raise ValueError(f"Round with ID {round_id} not found")
+        
+        return {"is_wildcard": round_obj.is_wildcard}
+
 
     def update_criteria(self, round_id: int, criteria: List[Dict[str, Any]], user_role: str, user_club: str = None) -> UnifiedEvent:
         """Update evaluation criteria for a round"""
@@ -81,10 +96,25 @@ class RoundService:
         if round_obj.is_frozen:
             raise ValueError("Cannot evaluate teams for frozen rounds")
         
-        # Check if team is active
+        # Check if team exists and can be evaluated
         team = self.db.query(Team).filter(Team.team_id == team_id).first()
-        if not team or team.status != TeamStatus.ACTIVE:
-            raise ValueError("Only active teams can be evaluated")
+        if not team:
+            raise ValueError("Team not found")
+        
+        # For wildcard rounds, allow eliminated teams OR teams that have TeamScore records for this round
+        # For regular rounds, only allow active teams
+        if round_obj.is_wildcard:
+            # Check if team has a TeamScore record for this round (includes originally eliminated and reactivated teams)
+            has_team_score = self.db.query(TeamScore).filter(
+                TeamScore.team_id == team_id,
+                TeamScore.round_id == round_id
+            ).first()
+            
+            if team.status != TeamStatus.ELIMINATED and not has_team_score:
+                raise ValueError("Only eliminated teams or teams with scores for this round can be evaluated in wildcard rounds")
+        else:
+            if team.status != TeamStatus.ACTIVE:
+                raise ValueError("Only active teams can be evaluated in regular rounds")
         
         # Get or create team score
         team_score = self.db.query(TeamScore).filter(
@@ -106,17 +136,17 @@ class RoundService:
         # Set presence status
         team_score.is_present = is_present
         
-        # If team is absent, set score to 0 and optionally mark as eliminated
+        # If team is absent, set score to 0
         if not is_present:
             team_score.score = 0.0
             team_score.raw_total_score = 0.0
             team_score.criteria_scores = {}
             team_score.is_normalized = True
             
-            # Only mark team as eliminated if elimination is enabled
-            if eliminate_absentees:
+            # For wildcard rounds, don't change team status (they're already eliminated)
+            # For regular rounds, handle elimination based on setting
+            if not round_obj.is_wildcard and eliminate_absentees:
                 team.status = TeamStatus.ELIMINATED
-            # If elimination is disabled, team keeps current status (usually ACTIVE)
             
             self.db.commit()
         else:
@@ -206,6 +236,7 @@ class RoundService:
         if user_role == "clubs" and round_obj.club != user_club:
             raise ValueError("You can only view evaluations for your own rounds")
         
+        # Return team scores for this round (already filtered during creation)
         return self.db.query(TeamScore).filter(TeamScore.round_id == round_id).all()
 
     def get_round_stats(self, round_id: int) -> Dict[str, Any]:

@@ -26,6 +26,7 @@ class UnifiedEventBase(BaseModel):
     shortlisted_teams: Optional[List[str]] = None  # Array of team_ids
     is_evaluated: bool = False
     is_frozen: bool = False
+    is_wildcard: bool = False  # Wildcard round for eliminated teams
     criteria: Optional[List[Dict[str, Any]]] = None  # Array of {name, max_points}
     max_score: Optional[float] = None
     min_score: Optional[float] = None
@@ -52,6 +53,7 @@ class UnifiedEventUpdate(BaseModel):
     shortlisted_teams: Optional[List[str]] = None
     is_evaluated: Optional[bool] = None
     is_frozen: Optional[bool] = None
+    is_wildcard: Optional[bool] = None
     criteria: Optional[List[Dict[str, Any]]] = None
     max_score: Optional[float] = None
     min_score: Optional[float] = None
@@ -80,6 +82,7 @@ class UnifiedEventInDB(BaseModel):
     shortlisted_teams: Optional[List[str]] = None
     is_evaluated: bool = False
     is_frozen: bool = False
+    is_wildcard: bool = False
     criteria: Optional[List[Dict[str, Any]]] = None
     max_score: Optional[float] = None
     min_score: Optional[float] = None
@@ -111,6 +114,7 @@ class RoundInDB(BaseModel):
     shortlisted_teams: Optional[List[str]] = None
     is_evaluated: bool = False
     is_frozen: bool = False
+    is_wildcard: bool = False
     criteria: Optional[List[Dict[str, Any]]] = None
     max_score: Optional[float] = None
     min_score: Optional[float] = None

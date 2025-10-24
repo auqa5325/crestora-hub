@@ -56,6 +56,17 @@ async def get_round_evaluations(
     round_service = RoundService(db)
     return round_service.get_round_evaluations(round_id, current_user.role, current_user.club)
 
+@router.get("/rounds/{round_id}/is-wildcard")
+async def check_round_is_wildcard(
+    round_id: int,
+    db: Session = Depends(get_db),
+    current_user = Depends(require_club_or_pda())
+):
+    """Check if a round is a wildcard round"""
+    round_service = RoundService(db)
+    return round_service.check_round_is_wildcard(round_id)
+
+
 @router.put("/rounds/{round_id}/evaluate/{team_id}")
 async def evaluate_team(
     round_id: int,
@@ -586,4 +597,34 @@ async def shortlist_teams(
         db.rollback()
         print(f"Error shortlisting teams: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to shortlist teams: {str(e)}")
+
+@router.get("/rounds/{round_id}/details")
+async def get_round_details(
+    round_id: int,
+    db: Session = Depends(get_db)
+):
+    """Get round details by ID (name, club, etc.) - PUBLIC ACCESS"""
+    try:
+        round_data = db.query(UnifiedEvent).filter(UnifiedEvent.id == round_id).first()
+        
+        if not round_data:
+            raise HTTPException(status_code=404, detail="Round not found")
+        
+        return {
+            "id": round_data.id,
+            "name": round_data.name,
+            "club": round_data.club,
+            "round_number": round_data.round_number,
+            "event_id": round_data.event_id,
+            "mode": round_data.mode.value if round_data.mode else None,
+            "date": round_data.date.isoformat() if round_data.date else None,
+            "description": round_data.description,
+            "is_wildcard": round_data.is_wildcard
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error fetching round details: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to fetch round details: {str(e)}")
 

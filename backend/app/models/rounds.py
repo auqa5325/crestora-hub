@@ -52,11 +52,9 @@ class UnifiedEvent(Base):
     
     # Content
     description = Column(Text, nullable=True)
-    extended_description = Column(Text, nullable=True)  # Extended description for more details
-    
-    # Contact and Form Information
-    form_link = Column(String(500), nullable=True)  # Link to registration/form
-    contact = Column(String(200), nullable=True)  # Contact information
+    extended_description = Column(Text, nullable=True)
+    form_link = Column(String(500), nullable=True)
+    contact = Column(String(200), nullable=True)
     
     # Status (applies to both events and rounds)
     status = Column(Enum(EventStatus), default=EventStatus.UPCOMING)
@@ -67,6 +65,7 @@ class UnifiedEvent(Base):
     shortlisted_teams = Column(JSON, nullable=True)  # Array of team_ids
     is_evaluated = Column(Boolean, default=False)
     is_frozen = Column(Boolean, default=False)
+    is_wildcard = Column(Boolean, default=False)  # Wildcard round for eliminated teams
     criteria = Column(JSON, nullable=True)  # Array of {name, max_points}
     max_score = Column(Float, nullable=True)
     min_score = Column(Float, nullable=True)
