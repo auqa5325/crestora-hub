@@ -489,9 +489,9 @@ async def update_event_or_round(
     round_number: int,
     event_update: UnifiedEventUpdate,
     db: Session = Depends(get_db),
-    current_user = Depends(require_pda_role())
+    current_user = Depends(require_club_or_pda())
 ):
-    """Update an event or round (PDA only)"""
+    """Update an event or round (PDA can update all, clubs can update their own)"""
     try:
         event = db.query(UnifiedEvent).filter(
             UnifiedEvent.event_id == event_id,
@@ -500,6 +500,13 @@ async def update_event_or_round(
         
         if not event:
             raise HTTPException(status_code=404, detail="Event or round not found")
+        
+        # Check ownership for club users
+        if current_user.role == "clubs" and event.club != current_user.club:
+            raise HTTPException(
+                status_code=403, 
+                detail="You can only update rounds assigned to your club"
+            )
         
         # Update only provided fields
         update_data = event_update.dict(exclude_unset=True)
@@ -511,6 +518,8 @@ async def update_event_or_round(
         
         # Return the raw SQLAlchemy model - FastAPI will handle serialization
         return event
+    except HTTPException:
+        raise
     except Exception as e:
         db.rollback()
         print(f"Error updating round: {str(e)}")

@@ -34,6 +34,7 @@ const menuItems = [
   { title: "Leaderboard", url: "/leaderboard", icon: Trophy, roles: ["admin"] },
   { title: "Rolling Results", url: "/rolling-results", icon: Trophy, roles: ["admin", "clubs"] },
   { title: "PDA Round Management", url: "/pda-round-management", icon: Wrench, roles: ["admin"] },
+  { title: "Club Round Management", url: "/club-round-management", icon: Wrench, roles: ["clubs"] },
   // Temporarily hidden - Finance
   // { title: "Finance", url: "/finance", icon: DollarSign, roles: ["admin"] },
 ];

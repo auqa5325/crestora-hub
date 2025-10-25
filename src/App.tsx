@@ -13,7 +13,8 @@ import RollingEventsResults from "./pages/RollingEventsResults";
 import RoundsDashboard from "./pages/RoundsDashboard";
 import RoundEvaluation from "./pages/RoundEvaluation";
 import WildcardRoundEvaluation from "./pages/WildcardRound";
-import PDARoundManagement from "./pages/PDARoundManagement";
+import PDARoundManagement from "./pages/RoundManagement";
+import ClubRoundManagement from "./pages/ClubRoundManagement";
 import Teams from "./pages/Teams";
 import Leaderboard from "./pages/Leaderboard";
 import Finance from "./pages/Finance";
@@ -94,6 +95,14 @@ const App = () => (
               element={
                 <ProtectedRoute requiredRole="admin">
                   <PDARoundManagement />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/club-round-management" 
+              element={
+                <ProtectedRoute requiredRole="clubs">
+                  <ClubRoundManagement />
                 </ProtectedRoute>
               } 
             />

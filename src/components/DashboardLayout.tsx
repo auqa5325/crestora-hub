@@ -29,6 +29,8 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
         return 'Administrator';
       case 'judge':
         return 'Judge';
+      case 'clubs':
+        return 'Club Member';
       case 'team':
         return 'Team Member';
       default:
