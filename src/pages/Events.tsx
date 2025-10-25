@@ -315,9 +315,9 @@ const Events = () => {
     console.log('Auth token exists:', !!token);
     console.log('User role:', user?.role);
     
-    // Check if user is admin
-    if (user?.role !== 'admin') {
-      toast.error("Only admin users can create or update rounds");
+    // Check if user has permission (admin or clubs)
+    if (user?.role !== 'admin' && user?.role !== 'clubs') {
+      toast.error("Only admin and club users can create or update rounds");
       setIsSavingRound(false);
       return;
     }
@@ -608,10 +608,12 @@ const Events = () => {
                   <Badge variant="secondary" className="text-xs">
                     {formatEventType(event.type)}
                   </Badge>
-                  {user?.role === 'admin' && (
+                  {(user?.role === 'admin' || user?.role === 'clubs') && (
                     <div className="flex items-center gap-1">
                       <Eye className="h-3 w-3 text-muted-foreground" />
-                      <span className="text-xs text-muted-foreground">Click to view/edit</span>
+                      <span className="text-xs text-muted-foreground">
+                        {user?.role === 'admin' ? 'Click to view/edit' : 'Click to view'}
+                      </span>
                     </div>
                   )}
                 </div>
@@ -634,13 +636,12 @@ const Events = () => {
               </DialogHeader>
               
               <Tabs defaultValue="overview" className="w-full">
-                <TabsList className="grid w-full grid-cols-2">
+                <TabsList className={`grid w-full ${user?.role === 'admin' ? 'grid-cols-3' : 'grid-cols-2'}`}>
                   <TabsTrigger value="overview">Overview</TabsTrigger>
                   <TabsTrigger value="rounds">Rounds ({selectedEvent.rounds.length})</TabsTrigger>
-                  {/* Disabled for now */}
-                  {/* {user?.role === 'admin' && (
+                  {user?.role === 'admin' && (
                     <TabsTrigger value="edit">Edit</TabsTrigger>
-                  )} */}
+                  )}
                 </TabsList>
                 
                 <TabsContent value="overview" className="space-y-6">
@@ -726,8 +727,7 @@ const Events = () => {
                   <div className="space-y-4">
                     <div className="flex items-center justify-between">
                       <h3 className="text-lg font-semibold">Event Rounds</h3>
-                      {/* Disabled for now */}
-                      {/* {user?.role === 'admin' && (
+                      {(user?.role === 'admin' || user?.role === 'clubs') && (
                         <Button
                           size="sm"
                           onClick={() => handleAddRound(selectedEvent)}
@@ -735,7 +735,7 @@ const Events = () => {
                           <Plus className="h-4 w-4 mr-2" />
                           Add Round
                         </Button>
-                      )} */}
+                      )}
                     </div>
                     
                     <div className="space-y-4">
@@ -804,26 +804,27 @@ const Events = () => {
                                   </div>
                                 )}
                               </div>
-                              {/* Disabled for now */}
-                              {/* {user?.role === 'admin' && (
+                              {(user?.role === 'admin' || user?.role === 'clubs') && (
                                 <div className="flex items-center gap-2">
                                   <Button
                                     size="sm"
                                     variant="ghost"
-                                    onClick={() => handleEditRound(round)}
+                                    onClick={() => setEditingRound(round)}
                                   >
                                     <Edit className="h-3 w-3" />
                                   </Button>
-                                  <Button
-                                    size="sm"
-                                    variant="ghost"
-                                    className="text-red-600 hover:text-red-700"
-                                    onClick={() => handleDeleteRound(round)}
-                                  >
-                                    <Trash2 className="h-3 w-3" />
-                                  </Button>
+                                  {user?.role === 'admin' && (
+                                    <Button
+                                      size="sm"
+                                      variant="ghost"
+                                      className="text-red-600 hover:text-red-700"
+                                      onClick={() => handleDeleteRound(round)}
+                                    >
+                                      <Trash2 className="h-3 w-3" />
+                                    </Button>
+                                  )}
                                 </div>
-                              )} */}
+                              )}
                             </div>
                           </CardContent>
                         </Card>
@@ -837,13 +838,12 @@ const Events = () => {
                             <p className="text-muted-foreground mb-4">
                               This event doesn't have any rounds configured.
                             </p>
-                            {/* Disabled for now */}
-                            {/* {user?.role === 'admin' && (
+                            {(user?.role === 'admin' || user?.role === 'clubs') && (
                               <Button onClick={() => handleAddRound(selectedEvent)}>
                                 <Plus className="h-4 w-4 mr-2" />
                                 Add First Round
                               </Button>
-                            )} */}
+                            )}
                           </CardContent>
                         </Card>
                       )}
@@ -851,8 +851,7 @@ const Events = () => {
                   </div>
                 </TabsContent>
                 
-                {/* Disabled for now */}
-                {/* {user?.role === 'admin' && (
+                {user?.role === 'admin' && (
                   <TabsContent value="edit" className="space-y-6">
                     <div className="space-y-4">
                       <h3 className="text-lg font-semibold">Edit Event</h3>
@@ -953,7 +952,7 @@ const Events = () => {
                       </div>
                     </div>
                   </TabsContent>
-                )} */}
+                )}
               </Tabs>
             </DialogContent>
           </Dialog>

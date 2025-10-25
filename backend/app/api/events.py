@@ -21,9 +21,14 @@ async def get_events(
     # Get only main events (round_number = 0)
     query = db.query(UnifiedEvent).filter(UnifiedEvent.round_number == 0)
     
-    # Filter by club if user is club representative
+    # Filter by club if user is club representative, but allow access to main title events
     if current_user.role == "clubs":
-        query = query.filter(UnifiedEvent.club == current_user.club)
+        # Allow access to main title events (like CRESTORA) for all club users
+        # Only filter rolling events by club
+        query = query.filter(
+            (UnifiedEvent.type == EventType.TITLE) | 
+            (UnifiedEvent.club == current_user.club)
+        )
     
     if event_type:
         query = query.filter(UnifiedEvent.type == event_type)
@@ -128,7 +133,7 @@ async def get_event(event_id: str, db: Session = Depends(get_db), current_user =
         raise HTTPException(status_code=404, detail="Event not found")
     
     # Check access permissions for club users
-    if current_user.role == "clubs" and event.club != current_user.club:
+    if current_user.role == "clubs" and event.club != current_user.club and event.type != EventType.TITLE:
         raise HTTPException(status_code=403, detail="Access denied")
     
     return event
@@ -144,7 +149,7 @@ async def get_event_rounds(event_id: str, db: Session = Depends(get_db), current
         raise HTTPException(status_code=404, detail="Event not found")
     
     # Check access permissions for club users
-    if current_user.role == "clubs" and event.club != current_user.club:
+    if current_user.role == "clubs" and event.club != current_user.club and event.type != EventType.TITLE:
         raise HTTPException(status_code=403, detail="Access denied")
     
     rounds = db.query(UnifiedEvent).filter(

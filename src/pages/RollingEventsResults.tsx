@@ -26,9 +26,8 @@ import {
 } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiService, RollingEventResult, RollingEventResultCreate, AvailableRollingEvent } from "@/services/api";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
-import { useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 
 // Department and year options
@@ -65,10 +64,6 @@ const RollingEventsResults = () => {
   const [editingResult, setEditingResult] = useState<RollingEventResult | null>(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   
-  // URL search params
-  const [searchParams] = useSearchParams();
-  const eventIdFromUrl = searchParams.get('eventId');
-  
   // Form state
   const [formData, setFormData] = useState({
     event_id: "",
@@ -100,26 +95,6 @@ const RollingEventsResults = () => {
     queryFn: () => apiService.getRollingResults(),
     refetchInterval: 30000,
   });
-
-  // Filter results based on URL parameter
-  const filteredResults = eventIdFromUrl 
-    ? rollingResults?.filter(result => result.event_id === eventIdFromUrl) || []
-    : rollingResults || [];
-
-  // Effect to handle URL parameter
-  useEffect(() => {
-    if (eventIdFromUrl && availableEvents) {
-      const event = availableEvents.find(e => e.event_id === eventIdFromUrl);
-      if (event) {
-        setSelectedEvent(event);
-        setFormData(prev => ({
-          ...prev,
-          event_id: eventIdFromUrl,
-          club: event.club || user?.club || ""
-        }));
-      }
-    }
-  }, [eventIdFromUrl, availableEvents, user?.club]);
 
   // Create/Update result mutation
   const createResultMutation = useMutation({
@@ -436,33 +411,12 @@ const RollingEventsResults = () => {
         {/* Header */}
         <div className="flex flex-col space-y-4 lg:flex-row lg:items-center lg:justify-between lg:space-y-0">
           <div>
-            <h1 className="text-2xl font-bold mb-2 sm:text-3xl">
-              Rolling Events Results
-              {eventIdFromUrl && selectedEvent && (
-                <span className="text-lg font-normal text-muted-foreground ml-2">
-                  - {selectedEvent.name}
-                </span>
-              )}
-            </h1>
+            <h1 className="text-2xl font-bold mb-2 sm:text-3xl">Rolling Events Results</h1>
             <p className="text-muted-foreground text-sm sm:text-base">
-              {eventIdFromUrl 
-                ? `Results for ${selectedEvent?.name || 'selected event'}`
-                : 'Manage winners and runners-up for rolling events'
-              }
+              Manage winners and runners-up for rolling events
             </p>
           </div>
           <div className="flex flex-col space-y-2 sm:flex-row sm:space-y-0 sm:gap-2">
-            {eventIdFromUrl && (
-              <Button 
-                variant="outline"
-                onClick={() => window.history.replaceState({}, '', '/rolling-results')}
-                size="sm"
-                className="w-full sm:w-auto"
-              >
-                <X className="h-4 w-4 mr-2" />
-                <span className="hidden sm:inline">Clear Filter</span>
-              </Button>
-            )}
             <Button 
               variant="outline"
               onClick={() => refetch()}
@@ -495,7 +449,7 @@ const RollingEventsResults = () => {
 
         {/* Results Grid */}
         <div className="grid gap-4 sm:gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {filteredResults?.map((result) => (
+          {rollingResults?.map((result) => (
             <Card key={result.id} className="shadow-card hover:shadow-elevated transition-all">
               <CardHeader className="pb-3">
                 <div className="flex flex-col space-y-2 sm:flex-row sm:items-start sm:justify-between sm:space-y-0">
@@ -625,7 +579,7 @@ const RollingEventsResults = () => {
           ))}
         </div>
 
-        {filteredResults?.length === 0 && (
+        {rollingResults?.length === 0 && (
           <Card>
             <CardContent className="p-4 sm:p-6 text-center">
               <Trophy className="h-10 w-10 sm:h-12 sm:w-12 text-muted-foreground mx-auto mb-4" />

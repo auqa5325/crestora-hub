@@ -142,7 +142,10 @@ const RollingEventsManagement = () => {
 
   const { data: events, isLoading, error } = useQuery<RollingEvent[]>({
     queryKey: ['rolling-events'],
-    queryFn: () => apiService.getEvents({ event_type: 'rolling' }),
+    queryFn: async () => {
+      const apiEvents = await apiService.getEvents({ event_type: 'rolling' });
+      return apiEvents as RollingEvent[];
+    },
     refetchInterval: 30000,
   });
 
@@ -386,12 +389,14 @@ const RollingEventsManagement = () => {
             </p>
           </div>
           <Dialog open={isCreateModalOpen} onOpenChange={setIsCreateModalOpen}>
-            <DialogTrigger asChild>
-              <Button className="gradient-hero" onClick={resetForm}>
-                <Plus className="h-4 w-4 mr-2" />
-                Create Event
-              </Button>
-            </DialogTrigger>
+            {user?.club === 'PDA' && (
+              <DialogTrigger asChild>
+                <Button className="gradient-hero" onClick={resetForm}>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Create Event
+                </Button>
+              </DialogTrigger>
+            )}
             <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>Create Rolling Event</DialogTitle>
