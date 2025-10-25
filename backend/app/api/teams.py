@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from app.database import get_db
@@ -8,8 +9,10 @@ from app.models.rounds import UnifiedEvent
 from app.models.round_weight import RoundWeight
 from app.schemas.team import TeamInDB as TeamSchema, TeamCreate, TeamUpdate, TeamStats, TeamMemberInDB
 from app.schemas.team_score import TeamScoreInDB
-from app.auth import get_current_user, require_pda_role
+from app.auth import get_current_user, require_pda_role, require_club_or_pda
 from passlib.context import CryptContext
+import csv
+import io
 
 router = APIRouter(prefix="/api/teams", tags=["teams"])
 
@@ -234,6 +237,85 @@ async def get_team_stats(db: Session = Depends(get_db)):
         completed_teams=completed_teams,
         teams_by_round=teams_by_round
     )
+
+@router.get("/export")
+async def export_teams(
+    status: Optional[str] = Query(None, description="Filter by team status (active, eliminated)"),
+    round_id: Optional[int] = Query(None, description="Filter by round participation"),
+    search: Optional[str] = Query(None, description="Search term for team name or leader name"),
+    db: Session = Depends(get_db),
+    current_user = Depends(require_club_or_pda())
+):
+    """Export teams data as CSV based on filter conditions"""
+    try:
+        # Build query based on filters
+        query = db.query(Team)
+        
+        # Apply status filter
+        if status and status != "all":
+            if status.upper() == "ACTIVE":
+                query = query.filter(Team.status == TeamStatus.ACTIVE)
+            elif status.upper() == "ELIMINATED":
+                query = query.filter(Team.status == TeamStatus.ELIMINATED)
+            elif status.upper() == "COMPLETED":
+                query = query.filter(Team.status == TeamStatus.COMPLETED)
+        
+        # Apply search filter
+        if search:
+            search_term = f"%{search}%"
+            query = query.filter(
+                (Team.team_name.ilike(search_term)) |
+                (Team.leader_name.ilike(search_term))
+            )
+        
+        # Apply round filter (teams that participated in specific round)
+        if round_id:
+            query = query.join(TeamScore).filter(TeamScore.round_id == round_id)
+        
+        teams = query.all()
+        
+        # Create CSV content
+        output = io.StringIO()
+        writer = csv.writer(output)
+        
+        # Write header
+        writer.writerow([
+            "Team ID", "Team Name", "Leader Name", "Leader Email", "Leader Contact",
+            "Status", "Members Count", "Created At", "Updated At"
+        ])
+        
+        # Write team data
+        for team in teams:
+            # Get team members count
+            members_count = len(team.members) if team.members else 0
+            
+            writer.writerow([
+                team.team_id,
+                team.team_name,
+                team.leader_name,
+                team.leader_email,
+                team.leader_contact,
+                team.status.value if team.status else "Unknown",
+                members_count,
+                team.created_at.isoformat() if team.created_at else "",
+                team.updated_at.isoformat() if team.updated_at else ""
+            ])
+        
+        # Get CSV content
+        csv_content = output.getvalue()
+        output.close()
+        
+        # Create response
+        response = StreamingResponse(
+            io.BytesIO(csv_content.encode('utf-8')),
+            media_type="text/csv",
+            headers={"Content-Disposition": "attachment; filename=teams_export.csv"}
+        )
+        
+        return response
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Export failed: {str(e)}")
 
 @router.get("/{team_id}", response_model=TeamSchema)
 async def get_team(team_id: str, db: Session = Depends(get_db)):

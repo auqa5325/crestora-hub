@@ -631,6 +631,41 @@ class ApiService {
     return this.request<TeamScore[]>(`/teams/${teamId}/scores`);
   }
 
+  // Teams export API
+  async exportTeams(filters: {
+    status?: string;
+    round_id?: number;
+    search?: string;
+  } = {}): Promise<Blob> {
+    const params = new URLSearchParams();
+    
+    if (filters.status && filters.status !== 'all') {
+      params.append('status', filters.status);
+    }
+    if (filters.round_id && filters.round_id !== 0) {
+      params.append('round_id', filters.round_id.toString());
+    }
+    if (filters.search) {
+      params.append('search', filters.search);
+    }
+    
+    const queryString = params.toString();
+    const url = `/teams/export${queryString ? `?${queryString}` : ''}`;
+    
+    const response = await fetch(`${API_BASE_URL}${url}`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
+      },
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Export failed: ${response.status} ${response.statusText}`);
+    }
+    
+    return response.blob();
+  }
+
   // Round details API
   async getRoundDetails(roundId: number): Promise<{
     id: number;

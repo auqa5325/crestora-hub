@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Users, Search, Filter, Mail, Phone, User, Calendar, Trophy, Eye, Edit } from "lucide-react";
+import { Users, Search, Filter, Mail, Phone, User, Calendar, Trophy, Eye, Edit, Download } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiService, Team, TeamStats, TeamScore } from "@/services/api";
 import RoundScoreCard from "@/components/RoundScoreCard";
@@ -22,10 +22,51 @@ const Teams = () => {
   const [teamScores, setTeamScores] = useState<TeamScore[]>([]);
   const [isStatusModalOpen, setIsStatusModalOpen] = useState(false);
   const [newStatus, setNewStatus] = useState<'ACTIVE' | 'ELIMINATED' | 'COMPLETED'>('ACTIVE');
+  const [isExporting, setIsExporting] = useState(false);
   
   const { user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+
+  // Export teams function
+  const handleExportTeams = async () => {
+    if (isExporting) return; // Prevent multiple simultaneous exports
+    
+    setIsExporting(true);
+    try {
+      const filters = {
+        status: statusFilter !== "all" ? statusFilter : undefined,
+        round_id: roundFilter !== "all" ? parseInt(roundFilter) : undefined,
+        search: searchTerm || undefined
+      };
+
+      const blob = await apiService.exportTeams(filters);
+      
+      // Create download link
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `teams_export_${new Date().toISOString().split('T')[0]}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+      
+      toast({
+        title: "Export Successful",
+        description: "Teams data has been exported successfully.",
+      });
+    } catch (error) {
+      console.error('Export failed:', error);
+      toast({
+        title: "Export Failed",
+        description: "Failed to export teams data. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsExporting(false);
+    }
+  };
 
   const { data: teams, isLoading, error } = useQuery<Team[]>({
     queryKey: ['teams'],
@@ -227,9 +268,22 @@ const Teams = () => {
             </p>
           </div>
           <div className="flex gap-2">
-            <Button className="gradient-hero">
-              <Users className="h-4 w-4 mr-2" />
-              Export Teams
+            <Button 
+              className="gradient-hero"
+              onClick={handleExportTeams}
+              disabled={isLoading || isExporting}
+            >
+              {isExporting ? (
+                <>
+                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent mr-2" />
+                  Exporting...
+                </>
+              ) : (
+                <>
+                  <Download className="h-4 w-4 mr-2" />
+                  Export Teams
+                </>
+              )}
             </Button>
           </div>
         </div>
