@@ -59,6 +59,11 @@ const Leaderboard = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
 
+  // Export loading states
+  const [isExportingCSV, setIsExportingCSV] = useState(false);
+  const [isExportingOfficialPDF, setIsExportingOfficialPDF] = useState(false);
+  const [isExportingDetailedPDF, setIsExportingDetailedPDF] = useState(false);
+
   const { data: teams, isLoading: teamsLoading } = useQuery<Team[]>({
     queryKey: ['teams'],
     queryFn: () => apiService.getTeams({ limit: 100 }),
@@ -417,6 +422,7 @@ const Leaderboard = () => {
 
   // Export leaderboard
   const exportLeaderboard = async () => {
+    setIsExportingCSV(true);
     try {
       const blob = await apiService.exportLeaderboard();
       const url = window.URL.createObjectURL(blob);
@@ -433,6 +439,8 @@ const Leaderboard = () => {
         description: "Failed to export leaderboard. Please try again.",
         variant: "destructive",
       });
+    } finally {
+      setIsExportingCSV(false);
     }
   };
 
@@ -458,6 +466,53 @@ const Leaderboard = () => {
         description: "Failed to export rolling events results. Please try again.",
         variant: "destructive",
       });
+    }
+  };
+
+  // Export leaderboard as PDF (Official Format)
+  const exportLeaderboardPDF = async (formatType: 'official' | 'detailed' = 'official') => {
+    if (formatType === 'official') {
+      setIsExportingOfficialPDF(true);
+    } else {
+      setIsExportingDetailedPDF(true);
+    }
+    
+    try {
+      // Get the latest evaluated round number
+      const latestRound = evaluatedRounds
+        .filter(r => r.is_evaluated)
+        .sort((a, b) => b.round_number - a.round_number)[0];
+      
+      const roundNumber = latestRound?.round_number || undefined;
+      
+      const blob = await apiService.exportLeaderboardPDF(roundNumber, formatType);
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = formatType === 'official' 
+        ? `Crestora_Round${roundNumber || 3}_results.pdf`
+        : 'CRESTORA25_Detailed_Leaderboard.pdf';
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      toast({
+        title: "PDF exported successfully!",
+        description: `Leaderboard has been saved as ${formatType} PDF.`,
+      });
+    } catch (error) {
+      console.error('PDF export error:', error);
+      toast({
+        title: "Export failed",
+        description: "Failed to export leaderboard as PDF. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      if (formatType === 'official') {
+        setIsExportingOfficialPDF(false);
+      } else {
+        setIsExportingDetailedPDF(false);
+      }
     }
   };
 
@@ -552,14 +607,34 @@ const Leaderboard = () => {
               Current rankings and team standings
             </p>
           </div>
-          <div className="flex flex-col sm:flex-row gap-2">
-            <Button variant="outline" onClick={exportLeaderboard} className="w-full sm:w-auto">
+          <div className="flex flex-wrap gap-2">
+            <Button 
+              variant="outline" 
+              onClick={exportLeaderboard} 
+              disabled={isExportingCSV}
+              className="flex-1 sm:flex-none min-w-[140px]"
+            >
               <Download className="h-4 w-4 mr-2" />
-              Download CSV
+              <span className="hidden sm:inline">{isExportingCSV ? 'Downloading...' : 'Download CSV'}</span>
+              <span className="sm:hidden">{isExportingCSV ? '...' : 'CSV'}</span>
             </Button>
-            <Button className="gradient-hero w-full sm:w-auto" onClick={handleEmailExport}>
+            <Button 
+              variant="outline" 
+              onClick={() => exportLeaderboardPDF('official')} 
+              disabled={isExportingOfficialPDF}
+              className="flex-1 sm:flex-none min-w-[140px]"
+            >
+              <Download className="h-4 w-4 mr-2" />
+              <span className="hidden sm:inline">{isExportingOfficialPDF ? 'Generating...' : 'Official PDF'}</span>
+              <span className="sm:hidden">{isExportingOfficialPDF ? '...' : 'Official'}</span>
+            </Button>
+            <Button 
+              className="gradient-hero flex-1 sm:flex-none min-w-[140px]" 
+              onClick={handleEmailExport}
+            >
               <Mail className="h-4 w-4 mr-2" />
-              Email CSV
+              <span className="hidden sm:inline">Email CSV</span>
+              <span className="sm:hidden">Email</span>
             </Button>
           </div>
         </div>

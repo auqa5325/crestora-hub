@@ -171,6 +171,7 @@ export interface LeaderboardData {
 
 export interface EvaluatedRound {
   round_id: number;
+  round_number: number;
   round_name: string;
   event_id: string;
   weight_percentage: number;
@@ -631,6 +632,20 @@ class ApiService {
     const response = await fetch(`${API_BASE_URL}/leaderboard/export`);
     if (!response.ok) {
       throw new Error(`Export failed: ${response.status} ${response.statusText}`);
+    }
+    return response.blob();
+  }
+
+  async exportLeaderboardPDF(roundNumber?: number, formatType: 'official' | 'detailed' = 'official'): Promise<Blob> {
+    const params = new URLSearchParams();
+    if (roundNumber) {
+      params.append('round_number', roundNumber.toString());
+    }
+    params.append('format_type', formatType);
+    
+    const response = await fetch(`${API_BASE_URL}/leaderboard/export-pdf?${params.toString()}`);
+    if (!response.ok) {
+      throw new Error(`PDF export failed: ${response.status} ${response.statusText}`);
     }
     return response.blob();
   }

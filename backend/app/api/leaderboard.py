@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Response
 from sqlalchemy.orm import Session
 from sqlalchemy import func, and_
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 from pydantic import BaseModel, EmailStr
 from app.database import get_db
 from app.models.team import Team, TeamStatus
@@ -12,6 +12,7 @@ from app.schemas.round_weight import RoundWeightUpdate
 from app.auth import get_current_user, require_pda_role
 from app.services.gmail_service import gmail_service
 from app.services.gmail_service_mock import mock_gmail_service
+from app.services.pdf_service import PDFService
 import csv
 import io
 import logging
@@ -19,6 +20,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/leaderboard", tags=["leaderboard"])
+pdf_service = PDFService()
 
 class EmailRequest(BaseModel):
     to_emails: List[EmailStr]
@@ -64,6 +66,7 @@ async def get_evaluated_rounds(db: Session = Depends(get_db)):
         
         rounds_with_weights.append({
             "round_id": round_data.id,
+            "round_number": round_data.round_number,
             "round_name": round_data.name,
             "event_id": round_data.event_id,
             "weight_percentage": weight.weight_percentage,
@@ -651,4 +654,89 @@ async def export_leaderboard_via_email(
         raise HTTPException(
             status_code=500, 
             detail=f"Failed to export and send leaderboard: {str(e)}"
+        )
+
+@router.get("/export-pdf")
+async def export_leaderboard_pdf(
+    round_number: Optional[int] = None,
+    format_type: str = "official",
+    db: Session = Depends(get_db)
+):
+    """
+    Export leaderboard as PDF
+    
+    Args:
+        round_number: Optional round number for official format (defaults to latest evaluated round)
+        format_type: 'official' for official template, 'detailed' for detailed view
+    """
+    try:
+        # Get leaderboard data
+        leaderboard_data = await get_leaderboard(db)
+        teams = leaderboard_data.get("teams", [])
+        
+        if not teams:
+            raise HTTPException(status_code=404, detail="No leaderboard data found to export")
+        
+        # Filter only ACTIVE teams for official PDF
+        if format_type == "official":
+            teams = [team for team in teams if team.get("status") == "ACTIVE"]
+        
+        # Remove emojis from team names
+        import re
+        emoji_pattern = re.compile("["
+            u"\U0001F600-\U0001F64F"  # emoticons
+            u"\U0001F300-\U0001F5FF"  # symbols & pictographs
+            u"\U0001F680-\U0001F6FF"  # transport & map symbols
+            u"\U0001F1E0-\U0001F1FF"  # flags (iOS)
+            u"\U00002702-\U000027B0"
+            u"\U000024C2-\U0001F251"
+            "]+", flags=re.UNICODE)
+        
+        for team in teams:
+            if "team_name" in team:
+                team["team_name"] = emoji_pattern.sub('', team["team_name"]).strip()
+        
+        # Determine round number if not provided
+        if round_number is None:
+            # Get the latest evaluated round
+            latest_round = db.query(UnifiedEvent).filter(
+                UnifiedEvent.is_evaluated == True,
+                UnifiedEvent.round_number > 0
+            ).order_by(UnifiedEvent.round_number.desc()).first()
+            
+            if latest_round:
+                round_number = latest_round.round_number
+            else:
+                round_number = 3  # Default fallback
+        
+        # Generate PDF based on format type
+        if format_type == "official":
+            pdf_bytes = pdf_service.generate_official_leaderboard_pdf(
+                teams=teams,
+                event_name="CRESTORA'25",
+                round_number=round_number
+            )
+            filename = f"Crestora_Round{round_number}_results.pdf"
+        else:
+            pdf_bytes = pdf_service.generate_detailed_leaderboard_pdf(
+                teams=teams,
+                event_name="CRESTORA'25",
+                include_scores=True
+            )
+            filename = "CRESTORA25_Detailed_Leaderboard.pdf"
+        
+        # Return PDF file
+        return Response(
+            content=pdf_bytes,
+            media_type="application/pdf",
+            headers={"Content-Disposition": f"attachment; filename={filename}"}
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"PDF export failed: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to export PDF: {str(e)}"
         )
