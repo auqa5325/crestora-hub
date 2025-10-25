@@ -549,6 +549,7 @@ async def get_public_events(
                 "event_code": event.event_code,
                 "name": event.name,
                 "type": event.type.value,
+                "club": event.club,
                 "start_date": event.start_date.isoformat() if event.start_date else None,
                 "end_date": event.end_date.isoformat() if event.end_date else None,
                 "venue": event.venue,
