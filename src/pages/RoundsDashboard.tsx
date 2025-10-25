@@ -240,6 +240,22 @@ const RoundsDashboard = () => {
     return mode === "online" ? "Online" : "Offline";
   };
 
+  const getStatusColor = (round: Round) => {
+    // Check the actual status field first, then fall back to is_evaluated/is_frozen
+    const status = (round as any).status;
+    if (status === 'completed' || round.is_evaluated) return "bg-green-100 text-green-800 border-green-200";
+    if (status === 'in_progress' || round.is_frozen) return "bg-blue-100 text-blue-800 border-blue-200";
+    return "bg-gray-100 text-gray-800 border-gray-200";
+  };
+
+  const getStatusText = (round: Round) => {
+    // Check the actual status field first, then fall back to is_evaluated/is_frozen
+    const status = (round as any).status;
+    if (status === 'completed' || round.is_evaluated) return "Completed";
+    if (status === 'in_progress' || round.is_frozen) return "In Progress";
+    return "Upcoming";
+  };
+
   if (isLoading) {
     return (
       <DashboardLayout>
@@ -592,6 +608,9 @@ const RoundsDashboard = () => {
                       <div className="flex flex-col gap-2">
                         <h3 className="font-semibold text-base sm:text-lg break-words">{round.name}</h3>
                         <div className="flex flex-wrap gap-2">
+                          <Badge variant="outline" className={`${getStatusColor(round)} text-xs`}>
+                            {getStatusText(round)}
+                          </Badge>
                           {round.is_frozen && (
                             <Badge variant="secondary" className="bg-blue-100 text-blue-800 text-xs">
                               Frozen

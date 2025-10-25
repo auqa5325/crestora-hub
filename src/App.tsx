@@ -52,18 +52,10 @@ const App = () => (
             />
             */}
             <Route 
-              path="/club-round-management" 
-              element={
-                <ProtectedRoute requiredRole="clubs">
-                  <ClubRoundManagement />
-                </ProtectedRoute>
-              } 
-            />
-            <Route 
-              path="/rolling-events-management" 
+              path="/events" 
               element={
                 <ProtectedRoute requiredRoles={['admin', 'clubs']}>
-                  <RollingEventsManagement />
+                  <Events />
                 </ProtectedRoute>
               } 
             />
@@ -72,14 +64,6 @@ const App = () => (
               element={
                 <ProtectedRoute requiredRoles={['admin', 'clubs']}>
                   <RollingEventsResults />
-                </ProtectedRoute>
-              } 
-            />
-            <Route 
-              path="/events" 
-              element={
-                <ProtectedRoute requiredRoles={['admin', 'clubs']}>
-                  <Events />
                 </ProtectedRoute>
               } 
             />
@@ -116,6 +100,14 @@ const App = () => (
               } 
             />
             <Route 
+              path="/club-round-management" 
+              element={
+                <ProtectedRoute requiredRole="clubs">
+                  <ClubRoundManagement />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
               path="/teams" 
               element={
                 <ProtectedRoute requiredRoles={['admin', 'clubs']}>
@@ -128,6 +120,14 @@ const App = () => (
               element={
                 <ProtectedRoute requiredRole="admin">
                   <Leaderboard />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/rolling-events-management" 
+              element={
+                <ProtectedRoute requiredRoles={['admin', 'clubs']}>
+                  <RollingEventsManagement />
                 </ProtectedRoute>
               } 
             />

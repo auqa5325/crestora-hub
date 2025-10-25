@@ -706,6 +706,8 @@ class ApiService {
     date?: string;
     description?: string;
     is_wildcard: boolean;
+    max_score?: number;
+    criteria?: Array<{name: string, max_points: number}>;
   }> {
     return this.request(`/rounds/rounds/${roundId}/details`);
   }

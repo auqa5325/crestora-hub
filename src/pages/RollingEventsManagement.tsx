@@ -116,6 +116,17 @@ const RollingEventsManagement = () => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
+
+  // Helper function to format status
+  const formatStatus = (status: any) => {
+    if (typeof status === 'string') {
+      return status;
+    }
+    if (status && typeof status === 'object' && 'value' in status) {
+      return status.value;
+    }
+    return 'unknown';
+  };
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [clubFilter, setClubFilter] = useState<string>("all");
@@ -226,7 +237,7 @@ const RollingEventsManagement = () => {
                          event.club?.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          event.event_id.toLowerCase().includes(searchTerm.toLowerCase());
     
-    const matchesStatus = statusFilter === "all" || event.status === statusFilter;
+    const matchesStatus = statusFilter === "all" || formatStatus(event.status) === statusFilter;
     const matchesClub = clubFilter === "all" || event.club === clubFilter;
 
     return matchesSearch && matchesStatus && matchesClub;
@@ -235,9 +246,9 @@ const RollingEventsManagement = () => {
   // Calculate statistics
   const stats = {
     total: availableEvents.length,
-    upcoming: availableEvents.filter(e => e.status === 'upcoming').length,
-    in_progress: availableEvents.filter(e => e.status === 'in_progress').length,
-    completed: availableEvents.filter(e => e.status === 'completed').length,
+    upcoming: availableEvents.filter(e => formatStatus(e.status) === 'upcoming').length,
+    in_progress: availableEvents.filter(e => formatStatus(e.status) === 'in_progress').length,
+    completed: availableEvents.filter(e => formatStatus(e.status) === 'completed').length,
     byClub: clubs.reduce((acc, club) => {
       acc[club] = availableEvents.filter(e => e.club === club).length;
       return acc;
@@ -839,7 +850,7 @@ const RollingEventsManagement = () => {
                         <h3 className="font-semibold text-base sm:text-lg break-words">{event.name}</h3>
                         <div className="flex flex-wrap gap-2">
                           <Badge variant="secondary" className="bg-blue-100 text-blue-800 text-xs">
-                            {event.status}
+                            {formatStatus(event.status)}
                           </Badge>
                           <Badge variant="secondary" className="bg-green-100 text-green-800 text-xs">
                             Rolling Event

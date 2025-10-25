@@ -27,6 +27,8 @@ interface RoundDetails {
   date?: string;
   description?: string;
   is_wildcard: boolean;
+  max_score?: number;
+  criteria?: Array<{name: string, max_points: number}>;
 }
 
 interface RoundScoreCardProps {
@@ -36,6 +38,14 @@ interface RoundScoreCardProps {
 const RoundScoreCard: React.FC<RoundScoreCardProps> = ({ score }) => {
   const [roundDetails, setRoundDetails] = useState<RoundDetails | null>(null);
   const [loading, setLoading] = useState(true);
+
+  // Calculate maximum possible points from criteria
+  const calculateMaxPossiblePoints = (criteria?: Array<{name: string, max_points: number}>): number => {
+    if (!criteria || !Array.isArray(criteria)) {
+      return 0;
+    }
+    return criteria.reduce((total, criterion) => total + (criterion.max_points || 0), 0);
+  };
 
   useEffect(() => {
     const fetchRoundDetails = async () => {
@@ -93,7 +103,7 @@ const RoundScoreCard: React.FC<RoundScoreCardProps> = ({ score }) => {
   return (
     <Card className="border-l-4 border-l-primary">
       <CardContent className="p-4">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4">
           <div className="space-y-1">
             <label className="text-sm font-medium text-muted-foreground">Round</label>
             <div>
@@ -115,6 +125,15 @@ const RoundScoreCard: React.FC<RoundScoreCardProps> = ({ score }) => {
           <div className="space-y-1">
             <label className="text-sm font-medium text-muted-foreground">Raw Score</label>
             <p className="font-medium">{score.raw_total_score.toFixed(1)}</p>
+          </div>
+          <div className="space-y-1">
+            <label className="text-sm font-medium text-muted-foreground">Max Points</label>
+            <p className="font-medium">
+              {(() => {
+                const maxPossible = calculateMaxPossiblePoints(roundDetails?.criteria);
+                return maxPossible > 0 ? maxPossible.toFixed(1) : 'N/A';
+              })()}
+            </p>
           </div>
           <div className="space-y-1">
             <label className="text-sm font-medium text-muted-foreground">

@@ -236,15 +236,19 @@ const ClubRoundManagement = () => {
   };
 
   const getStatusColor = (round: Round) => {
-    if (round.is_evaluated) return "bg-green-100 text-green-800 border-green-200";
-    if (round.is_frozen) return "bg-blue-100 text-blue-800 border-blue-200";
+    // Check the actual status field first, then fall back to is_evaluated/is_frozen
+    const status = (round as any).status;
+    if (status === 'completed' || round.is_evaluated) return "bg-green-100 text-green-800 border-green-200";
+    if (status === 'in_progress' || round.is_frozen) return "bg-blue-100 text-blue-800 border-blue-200";
     return "bg-gray-100 text-gray-800 border-gray-200";
   };
 
   const getStatusText = (round: Round) => {
-    if (round.is_evaluated) return "Evaluated";
-    if (round.is_frozen) return "Frozen";
-    return "Active";
+    // Check the actual status field first, then fall back to is_evaluated/is_frozen
+    const status = (round as any).status;
+    if (status === 'completed' || round.is_evaluated) return "Completed";
+    if (status === 'in_progress' || round.is_frozen) return "In Progress";
+    return "Upcoming";
   };
 
   const getModeIcon = (mode?: string) => {
@@ -330,19 +334,19 @@ const ClubRoundManagement = () => {
                 <div className="text-xl sm:text-2xl font-bold text-green-600">
                   {clubRounds.filter(r => r.is_evaluated).length}
                 </div>
-                <div className="text-xs sm:text-sm text-muted-foreground">Evaluated</div>
+                <div className="text-xs sm:text-sm text-muted-foreground">Completed</div>
               </div>
               <div className="text-center p-2 sm:p-3 bg-blue-50 rounded-lg">
                 <div className="text-xl sm:text-2xl font-bold text-blue-600">
                   {clubRounds.filter(r => r.is_frozen && !r.is_evaluated).length}
                 </div>
-                <div className="text-xs sm:text-sm text-muted-foreground">Frozen</div>
+                <div className="text-xs sm:text-sm text-muted-foreground">In Progress</div>
               </div>
               <div className="text-center p-2 sm:p-3 bg-gray-50 rounded-lg">
                 <div className="text-xl sm:text-2xl font-bold text-gray-600">
                   {clubRounds.filter(r => !r.is_frozen && !r.is_evaluated).length}
                 </div>
-                <div className="text-xs sm:text-sm text-muted-foreground">Active</div>
+                <div className="text-xs sm:text-sm text-muted-foreground">Upcoming</div>
               </div>
             </div>
           </CardContent>
@@ -386,7 +390,7 @@ const ClubRoundManagement = () => {
                                 {round.is_frozen && (
                                   <Badge variant="secondary" className="bg-blue-100 text-blue-800 text-xs">
                                     <Lock className="h-3 w-3 mr-1" />
-                                    Frozen
+                                    In Progress
                                   </Badge>
                                 )}
                                 {round.is_wildcard && (

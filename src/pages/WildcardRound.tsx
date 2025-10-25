@@ -677,6 +677,50 @@ const WildcardRoundEvaluation = () => {
     );
   }
 
+  // Check if round is upcoming - disable evaluation
+  if (selectedRound.status === 'upcoming') {
+    return (
+      <DashboardLayout>
+        <div className="space-y-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-2xl sm:text-3xl font-bold mb-2">Wildcard Round Evaluation</h1>
+              <p className="text-muted-foreground">
+                {selectedRound.name} - {selectedRound.event_name}
+              </p>
+            </div>
+            <Button variant="outline" onClick={() => navigate('/rounds')}>
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Back to Rounds
+            </Button>
+          </div>
+          
+          <Card className="bg-yellow-50 border-yellow-200">
+            <CardContent className="p-6 text-center">
+              <div className="h-12 w-12 bg-yellow-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <svg className="h-6 w-6 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <h3 className="text-lg font-semibold mb-2 text-yellow-800">Round Not Yet Started</h3>
+              <p className="text-yellow-700 mb-4">
+                This wildcard round is currently in "Upcoming" status. Evaluation will be available once the round begins.
+              </p>
+              <div className="text-sm text-yellow-600">
+                <p><strong>Round:</strong> {selectedRound.name}</p>
+                <p><strong>Event:</strong> {selectedRound.event_name}</p>
+                <p><strong>Club:</strong> {selectedRound.club || 'No club assigned'}</p>
+                {selectedRound.date && (
+                  <p><strong>Date:</strong> {new Date(selectedRound.date).toLocaleDateString()}</p>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </DashboardLayout>
+    );
+  }
+
   return (
     <DashboardLayout>
       <div className="space-y-6">

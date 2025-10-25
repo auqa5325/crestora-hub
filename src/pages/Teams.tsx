@@ -71,30 +71,31 @@ const Teams = () => {
   const { data: teams, isLoading, error } = useQuery<Team[]>({
     queryKey: ['teams'],
     queryFn: () => apiService.getTeams({ limit: 100 }),
-    refetchInterval: 10000, // Reduced from 30s to 10s
-    refetchOnWindowFocus: true, // Refetch when window gains focus
-    staleTime: 5000, // Consider data stale after 5 seconds
+    staleTime: 2 * 60 * 1000, // Consider data fresh for 2 minutes
+    gcTime: 5 * 60 * 1000, // Keep in cache for 5 minutes
+    refetchOnWindowFocus: false, // Don't refetch on window focus
   });
 
   const { data: teamStats } = useQuery<TeamStats>({
     queryKey: ['team-stats'],
     queryFn: () => apiService.getTeamStats(),
-    refetchInterval: 10000, // Reduced from 30s to 10s
-    refetchOnWindowFocus: true, // Refetch when window gains focus
-    staleTime: 5000, // Consider data stale after 5 seconds
+    staleTime: 2 * 60 * 1000, // Consider data fresh for 2 minutes
+    gcTime: 5 * 60 * 1000, // Keep in cache for 5 minutes
+    refetchOnWindowFocus: false, // Don't refetch on window focus
   });
 
-  // Fetch team scores when a team is selected
+  // Fetch team scores when a team is selected (only once per team)
   const { data: scores, isLoading: scoresLoading } = useQuery<TeamScore[]>({
     queryKey: ['team-scores', selectedTeam?.team_id],
     queryFn: () => selectedTeam ? apiService.getTeamScoresForTeam(selectedTeam.team_id) : Promise.resolve([]),
     enabled: !!selectedTeam,
-    refetchInterval: 30000,
+    staleTime: 5 * 60 * 1000, // Consider data fresh for 5 minutes
+    gcTime: 10 * 60 * 1000, // Keep in cache for 10 minutes
   });
 
   // Update teamScores when scores data changes
   useEffect(() => {
-    if (scores) {
+    if (scores && Array.isArray(scores)) {
       setTeamScores(scores);
     }
   }, [scores]);
@@ -427,7 +428,7 @@ const Teams = () => {
               key={team.id} 
               className="hover:shadow-lg transition-shadow cursor-pointer"
               onClick={() => {
-                if (user?.role === 'admin') {
+                if (user?.role === 'admin' || user?.role === 'clubs') {
                   setSelectedTeam(team);
                   setIsDetailModalOpen(true);
                 }
@@ -442,7 +443,7 @@ const Teams = () => {
                     <span className="text-xs text-muted-foreground font-mono">
                       {team.team_id}
                     </span>
-                    {user?.role === 'admin' && (
+                    {(user?.role === 'admin' || user?.role === 'clubs') && (
                       <Eye className="h-3 w-3 text-muted-foreground" />
                     )}
                   </div>
@@ -492,7 +493,7 @@ const Teams = () => {
                     <span>Joined: {new Date(team.created_at).toLocaleDateString()}</span>
                   </div>
                 </div>
-                {user?.role === 'admin' && (
+                {(user?.role === 'admin' || user?.role === 'clubs') && (
                   <div className="pt-2 border-t">
                     <p className="text-xs text-muted-foreground text-center">
                       Click to view full details
@@ -516,8 +517,8 @@ const Teams = () => {
           </Card>
         )}
 
-        {/* Team Details Modal for Admin */}
-        {user?.role === 'admin' && selectedTeam && (
+        {/* Team Details Modal for Admin and Club Users */}
+        {(user?.role === 'admin' || user?.role === 'clubs') && selectedTeam && (
           <Dialog open={isDetailModalOpen} onOpenChange={setIsDetailModalOpen}>
             <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
               <DialogHeader>
@@ -593,17 +594,19 @@ const Teams = () => {
                       <Trophy className="h-5 w-5" />
                       Team Status & Progress
                     </h3>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        setNewStatus(selectedTeam.status);
-                        setIsStatusModalOpen(true);
-                      }}
-                    >
-                      <Edit className="h-4 w-4 mr-2" />
-                      Edit Status
-                    </Button>
+                    {user?.role === 'admin' && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setNewStatus(selectedTeam.status);
+                          setIsStatusModalOpen(true);
+                        }}
+                      >
+                        <Edit className="h-4 w-4 mr-2" />
+                        Edit Status
+                      </Button>
+                    )}
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div className="space-y-2">
@@ -627,29 +630,31 @@ const Teams = () => {
                   </div>
                 </div>
 
-                {/* Round Scores */}
-                <div className="space-y-4">
-                  <h3 className="text-lg font-semibold flex items-center gap-2">
-                    <Trophy className="h-5 w-5" />
-                    Round Scores
-                  </h3>
-                  {scoresLoading ? (
-                    <div className="text-center py-4 text-muted-foreground">
-                      <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary mx-auto mb-2"></div>
-                      Loading scores...
-                    </div>
-                  ) : teamScores.length > 0 ? (
-                    <div className="space-y-3">
-                      {teamScores.map((score) => (
-                        <RoundScoreCard key={score.id} score={score} />
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="text-center py-4 text-muted-foreground">
-                      No scores available for this team.
-                    </div>
-                  )}
-                </div>
+                {/* Round Scores - Admin Only */}
+                {user?.role === 'admin' && (
+                  <div className="space-y-4">
+                    <h3 className="text-lg font-semibold flex items-center gap-2">
+                      <Trophy className="h-5 w-5" />
+                      Round Scores
+                    </h3>
+                    {scoresLoading ? (
+                      <div className="text-center py-4 text-muted-foreground">
+                        <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary mx-auto mb-2"></div>
+                        Loading scores...
+                      </div>
+                    ) : teamScores.length > 0 ? (
+                      <div className="space-y-3">
+                        {teamScores.map((score) => (
+                          <RoundScoreCard key={score.id} score={score} />
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-center py-4 text-muted-foreground">
+                        No scores available for this team.
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 {/* Team ID and Additional Info */}
                 <div className="space-y-4">
@@ -731,4 +736,5 @@ const Teams = () => {
 };
 
 export default Teams;
+
 

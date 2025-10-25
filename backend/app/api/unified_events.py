@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
+from sqlalchemy import text
 from typing import List, Optional
 from app.database import get_db
 from app.models.rounds import UnifiedEvent, EventType, EventStatus, EventMode
@@ -262,7 +263,59 @@ async def delete_round(event_id: str, round_number: int, db: Session = Depends(g
     if not round_data:
         raise HTTPException(status_code=404, detail="Round not found")
     
-    db.delete(round_data)
-    db.commit()
+    # Check if round is frozen or evaluated - prevent deletion
+    if round_data.is_frozen or round_data.is_evaluated:
+        raise HTTPException(
+            status_code=400, 
+            detail="Cannot delete frozen or evaluated rounds. Only upcoming rounds can be deleted."
+        )
+    
+    # Delete related data first to avoid foreign key constraints
+    from app.models.team_score import TeamScore
+    from app.models.round_weight import RoundWeight
+    from app.models.evaluation import Evaluation
+    
+    try:
+        # Delete evaluations for this specific round
+        evaluations_deleted = db.query(Evaluation).filter(
+            Evaluation.round_id == round_data.id
+        ).delete()
+        print(f"Deleted {evaluations_deleted} evaluations for round {round_data.id}")
+        
+        # Delete team scores for this specific round
+        team_scores_deleted = db.query(TeamScore).filter(
+            TeamScore.round_id == round_data.id
+        ).delete()
+        print(f"Deleted {team_scores_deleted} team scores for round {round_data.id}")
+        
+        # Delete round weights
+        round_weights_deleted = db.query(RoundWeight).filter(
+            RoundWeight.round_id == round_data.id
+        ).delete()
+        print(f"Deleted {round_weights_deleted} round weights for round {round_data.id}")
+        
+        # Commit the related data deletions first
+        db.commit()
+        
+        # Temporarily disable foreign key checks to handle the event_id constraint
+        # This is safe because we've already deleted all related data for this specific round
+        db.execute(text("SET FOREIGN_KEY_CHECKS = 0"))
+        
+        # Now delete the round
+        db.delete(round_data)
+        db.commit()
+        
+        # Re-enable foreign key checks
+        db.execute(text("SET FOREIGN_KEY_CHECKS = 1"))
+        
+    except Exception as e:
+        db.rollback()
+        # Make sure to re-enable foreign key checks even if there's an error
+        try:
+            db.execute(text("SET FOREIGN_KEY_CHECKS = 1"))
+        except:
+            pass
+        print(f"Error during deletion process: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to delete round: {str(e)}")
     
     return {"message": "Round deleted successfully"}

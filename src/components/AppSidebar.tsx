@@ -32,10 +32,10 @@ const menuItems = [
   { title: "Rounds", url: "/rounds", icon: Target, roles: ["admin", "clubs"] },
   { title: "Teams", url: "/teams", icon: Users, roles: ["admin", "clubs"] },
   { title: "Leaderboard", url: "/leaderboard", icon: Trophy, roles: ["admin"] },
-  { title: "Rolling Results", url: "/rolling-results", icon: Trophy, roles: ["admin", "clubs"] },
-  { title: "Rolling Events Management", url: "/rolling-events-management", icon: Calendar, roles: ["admin", "clubs"] },
   { title: "PDA Round Management", url: "/pda-round-management", icon: Wrench, roles: ["admin"] },
   { title: "Club Round Management", url: "/club-round-management", icon: Wrench, roles: ["clubs"] },
+  { title: "Rolling Events Management", url: "/rolling-events-management", icon: Calendar, roles: ["admin", "clubs"] },
+  { title: "Rolling Results", url: "/rolling-results", icon: Trophy, roles: ["admin", "clubs"] },
   // Temporarily hidden - Finance
   // { title: "Finance", url: "/finance", icon: DollarSign, roles: ["admin"] },
 ];

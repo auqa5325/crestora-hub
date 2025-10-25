@@ -59,7 +59,6 @@ const Events = () => {
   const queryClient = useQueryClient();
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const [editingEvent, setEditingEvent] = useState<Event | null>(null);
   const [editingRound, setEditingRound] = useState<Round | null>(null);
   const [isAddingRound, setIsAddingRound] = useState(false);
   const [isSavingRound, setIsSavingRound] = useState(false);
@@ -138,14 +137,12 @@ const Events = () => {
   };
 
   const handleEditEvent = (event: Event) => {
-    setEditingEvent({ ...event });
     setEditingRound(null);
     setIsAddingRound(false);
   };
 
   const handleEditRound = (round: Round) => {
     setEditingRound({ ...round });
-    setEditingEvent(null);
     setIsAddingRound(false);
   };
 
@@ -165,7 +162,6 @@ const Events = () => {
       created_at: new Date().toISOString(),
     };
     setEditingRound(newRound);
-    setEditingEvent(null);
     setIsAddingRound(true);
   };
 
@@ -211,18 +207,6 @@ const Events = () => {
     }
   };
 
-  const handleSaveEvent = async () => {
-    if (!editingEvent) return;
-    
-    try {
-      // Here you would call the API to update the event
-      toast.success("Event updated successfully!");
-      queryClient.invalidateQueries({ queryKey: ['events'] });
-      setEditingEvent(null);
-    } catch (error) {
-      toast.error("Failed to update event");
-    }
-  };
 
   const handleCreateEvent = async () => {
     // Validate required fields
@@ -628,20 +612,17 @@ const Events = () => {
             <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>
-                  {editingEvent ? 'Edit Event' : 'Event Details'} - {selectedEvent.name}
+                  Event Details - {selectedEvent.name}
                 </DialogTitle>
                 <DialogDescription>
-                  {editingEvent ? 'Modify event and round information' : 'Complete event and round details'}
+                  Complete event and round details
                 </DialogDescription>
               </DialogHeader>
               
               <Tabs defaultValue="overview" className="w-full">
-                <TabsList className={`grid w-full ${user?.role === 'admin' ? 'grid-cols-3' : 'grid-cols-2'}`}>
+                <TabsList className="grid w-full grid-cols-2">
                   <TabsTrigger value="overview">Overview</TabsTrigger>
                   <TabsTrigger value="rounds">Rounds ({selectedEvent.rounds.length})</TabsTrigger>
-                  {user?.role === 'admin' && (
-                    <TabsTrigger value="edit">Edit</TabsTrigger>
-                  )}
                 </TabsList>
                 
                 <TabsContent value="overview" className="space-y-6">
@@ -819,6 +800,8 @@ const Events = () => {
                                       variant="ghost"
                                       className="text-red-600 hover:text-red-700"
                                       onClick={() => handleDeleteRound(round)}
+                                      disabled={round.is_frozen || round.is_evaluated}
+                                      title={round.is_frozen || round.is_evaluated ? "Cannot delete frozen or evaluated rounds" : "Delete round"}
                                     >
                                       <Trash2 className="h-3 w-3" />
                                     </Button>
@@ -851,108 +834,6 @@ const Events = () => {
                   </div>
                 </TabsContent>
                 
-                {user?.role === 'admin' && (
-                  <TabsContent value="edit" className="space-y-6">
-                    <div className="space-y-4">
-                      <h3 className="text-lg font-semibold">Edit Event</h3>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                          <Label htmlFor="event-name">Event Name</Label>
-                          <Input
-                            id="event-name"
-                            value={editingEvent?.name || selectedEvent.name}
-                            onChange={(e) => editingEvent && setEditingEvent({...editingEvent, name: e.target.value})}
-                            disabled={!editingEvent}
-                          />
-                        </div>
-                        <div>
-                          <Label htmlFor="event-code">Event Code</Label>
-                          <Input
-                            id="event-code"
-                            value={editingEvent?.event_code || selectedEvent.event_code}
-                            onChange={(e) => editingEvent && setEditingEvent({...editingEvent, event_code: e.target.value})}
-                            disabled={!editingEvent}
-                          />
-                        </div>
-                        <div>
-                          <Label htmlFor="event-type">Event Type</Label>
-                          <Select
-                            value={editingEvent?.type || selectedEvent.type}
-                            onValueChange={(value) => editingEvent && setEditingEvent({...editingEvent, type: value as 'title' | 'rolling'})}
-                            disabled={!editingEvent}
-                          >
-                            <SelectTrigger>
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="title">Title Event</SelectItem>
-                              <SelectItem value="rolling">Rolling Event</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        <div>
-                          <Label htmlFor="event-status">Status</Label>
-                          <Select
-                            value={editingEvent?.status || selectedEvent.status}
-                            onValueChange={(value) => editingEvent && setEditingEvent({...editingEvent, status: value as 'upcoming' | 'in_progress' | 'completed'})}
-                            disabled={!editingEvent}
-                          >
-                            <SelectTrigger>
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="upcoming">Upcoming</SelectItem>
-                              <SelectItem value="in_progress">In Progress</SelectItem>
-                              <SelectItem value="completed">Completed</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        <div>
-                          <Label htmlFor="event-venue">Venue</Label>
-                          <Input
-                            id="event-venue"
-                            value={editingEvent?.venue || selectedEvent.venue || ''}
-                            onChange={(e) => editingEvent && setEditingEvent({...editingEvent, venue: e.target.value || undefined})}
-                            disabled={!editingEvent}
-                          />
-                        </div>
-                      </div>
-                      <div>
-                        <Label htmlFor="event-description">Description</Label>
-                        <Textarea
-                          id="event-description"
-                          value={editingEvent?.description || selectedEvent.description || ''}
-                          onChange={(e) => editingEvent && setEditingEvent({...editingEvent, description: e.target.value})}
-                          disabled={!editingEvent}
-                          rows={3}
-                        />
-                      </div>
-                      
-                      <div className="flex items-center gap-2">
-                        {!editingEvent ? (
-                          <Button onClick={() => setEditingEvent({...selectedEvent})}>
-                            <Edit className="h-4 w-4 mr-2" />
-                            Edit Event
-                          </Button>
-                        ) : (
-                          <>
-                            <Button onClick={handleSaveEvent}>
-                              <Save className="h-4 w-4 mr-2" />
-                              Save Changes
-                            </Button>
-                            <Button
-                              variant="outline"
-                              onClick={() => setEditingEvent(null)}
-                            >
-                              <X className="h-4 w-4 mr-2" />
-                              Cancel
-                            </Button>
-                          </>
-                        )}
-                      </div>
-                    </div>
-                  </TabsContent>
-                )}
               </Tabs>
             </DialogContent>
           </Dialog>

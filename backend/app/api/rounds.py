@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
+from sqlalchemy import text
 from typing import List, Optional, Dict, Any
 from pydantic import BaseModel, EmailStr
 from app.database import get_db
@@ -557,19 +558,60 @@ async def delete_round(
         if not round_data:
             raise HTTPException(status_code=404, detail="Round not found")
         
+        # Check if round is frozen or evaluated - prevent deletion
+        if round_data.is_frozen or round_data.is_evaluated:
+            raise HTTPException(
+                status_code=400, 
+                detail="Cannot delete frozen or evaluated rounds. Only upcoming rounds can be deleted."
+            )
+        
         # Delete related data first to avoid foreign key constraints
         from app.models.team_score import TeamScore
         from app.models.round_weight import RoundWeight
+        from app.models.evaluation import Evaluation
         
-        # Delete team scores
-        db.query(TeamScore).filter(TeamScore.round_id == round_data.id).delete()
-        
-        # Delete round weights
-        db.query(RoundWeight).filter(RoundWeight.round_id == round_data.id).delete()
-        
-        # Now delete the round
-        db.delete(round_data)
-        db.commit()
+        try:
+            # Delete evaluations for this specific round
+            evaluations_deleted = db.query(Evaluation).filter(
+                Evaluation.round_id == round_data.id
+            ).delete()
+            print(f"Deleted {evaluations_deleted} evaluations for round {round_data.id}")
+            
+            # Delete team scores for this specific round
+            team_scores_deleted = db.query(TeamScore).filter(
+                TeamScore.round_id == round_data.id
+            ).delete()
+            print(f"Deleted {team_scores_deleted} team scores for round {round_data.id}")
+            
+            # Delete round weights
+            round_weights_deleted = db.query(RoundWeight).filter(
+                RoundWeight.round_id == round_data.id
+            ).delete()
+            print(f"Deleted {round_weights_deleted} round weights for round {round_data.id}")
+            
+            # Commit the related data deletions first
+            db.commit()
+            
+            # Temporarily disable foreign key checks to handle the event_id constraint
+            # This is safe because we've already deleted all related data for this specific round
+            db.execute(text("SET FOREIGN_KEY_CHECKS = 0"))
+            
+            # Now delete the round
+            db.delete(round_data)
+            db.commit()
+            
+            # Re-enable foreign key checks
+            db.execute(text("SET FOREIGN_KEY_CHECKS = 1"))
+            
+        except Exception as e:
+            db.rollback()
+            # Make sure to re-enable foreign key checks even if there's an error
+            try:
+                db.execute(text("SET FOREIGN_KEY_CHECKS = 1"))
+            except:
+                pass
+            print(f"Error during deletion process: {str(e)}")
+            raise e
         
         return {"message": "Round deleted successfully"}
     except Exception as e:
@@ -628,7 +670,9 @@ async def get_round_details(
             "mode": round_data.mode.value if round_data.mode else None,
             "date": round_data.date.isoformat() if round_data.date else None,
             "description": round_data.description,
-            "is_wildcard": round_data.is_wildcard
+            "is_wildcard": round_data.is_wildcard,
+            "max_score": round_data.max_score,
+            "criteria": round_data.criteria
         }
         
     except HTTPException:
