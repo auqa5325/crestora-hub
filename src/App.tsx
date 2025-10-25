@@ -19,6 +19,7 @@ import Teams from "./pages/Teams";
 import Leaderboard from "./pages/Leaderboard";
 import Finance from "./pages/Finance";
 import NotFound from "./pages/NotFound";
+import RollingEventsManagement from "./pages/RollingEventsManagement";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -122,7 +123,15 @@ const App = () => (
                 </ProtectedRoute>
               } 
             />
-            {/* Temporarily hidden - Finance route
+            <Route 
+              path="/rolling-events-management" 
+              element={
+                <ProtectedRoute requiredRoles={['admin', 'clubs']}>
+                  <RollingEventsManagement />
+                </ProtectedRoute>
+              } 
+            />
+            {
             <Route 
               path="/finance" 
               element={
@@ -131,7 +140,7 @@ const App = () => (
                 </ProtectedRoute>
               } 
             />
-            */}
+            }
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>

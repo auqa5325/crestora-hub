@@ -83,14 +83,20 @@ const Events = () => {
     refetchInterval: 30000,
   });
 
-  const getStatusColor = (isEvaluated: boolean) => {
-    return isEvaluated 
-      ? "bg-primary/10 text-primary border-primary/20" 
-      : "bg-muted text-muted-foreground border-border";
+  const getStatusColor = (round: Round) => {
+    // Check the actual status field first, then fall back to is_evaluated/is_frozen
+    const status = (round as any).status;
+    if (status === 'completed' || round.is_evaluated) return "bg-green-100 text-green-800 border-green-200";
+    if (status === 'in_progress' || round.is_frozen) return "bg-blue-100 text-blue-800 border-blue-200";
+    return "bg-gray-100 text-gray-800 border-gray-200";
   };
 
-  const formatStatus = (isEvaluated: boolean) => {
-    return isEvaluated ? "Evaluated" : "Not Evaluated";
+  const formatStatus = (round: Round) => {
+    // Check the actual status field first, then fall back to is_evaluated/is_frozen
+    const status = (round as any).status;
+    if (status === 'completed' || round.is_evaluated) return "Completed";
+    if (status === 'in_progress' || round.is_frozen) return "In Progress";
+    return "Upcoming";
   };
 
   const formatEventType = (type: string) => {
@@ -529,9 +535,9 @@ const Events = () => {
                 <div className="flex items-start justify-between mb-2">
                   <Badge
                     variant="outline"
-                    className={getStatusColor(false)}
+                    className="bg-gray-100 text-gray-800 border-gray-200"
                   >
-                    {formatStatus(false)}
+                    Upcoming
                   </Badge>
                   <div className="flex items-center gap-2">
                     <span className="text-xs text-muted-foreground font-mono">
@@ -656,8 +662,8 @@ const Events = () => {
                       </div>
                       <div>
                         <Label className="text-sm font-medium text-muted-foreground">Status</Label>
-                        <Badge className={getStatusColor(false)}>
-                          {formatStatus(false)}
+                        <Badge className="bg-gray-100 text-gray-800 border-gray-200">
+                          Upcoming
                         </Badge>
                       </div>
                       <div>
@@ -740,8 +746,8 @@ const Events = () => {
                               <div className="space-y-2 flex-1">
                                 <div className="flex items-center gap-2">
                                   <Badge variant="outline">Round {round.round_number}</Badge>
-                                  <Badge className={getStatusColor(round.is_evaluated)}>
-                                    {formatStatus(round.is_evaluated)}
+                                  <Badge className={getStatusColor(round)}>
+                                    {formatStatus(round)}
                                   </Badge>
                                 </div>
                                 <h4 className="font-semibold">{round.name}</h4>

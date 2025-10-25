@@ -575,6 +575,130 @@ async def get_public_events(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error retrieving events: {str(e)}")
 
+@router.get("/rounds")
+async def get_public_rounds(
+    skip: int = Query(0, ge=0, description="Number of rounds to skip"),
+    limit: int = Query(100, ge=1, le=1000, description="Maximum number of rounds to return"),
+    db: Session = Depends(get_db)
+):
+    """
+    Get all rounds - PUBLIC ACCESS (No authentication required)
+    
+    Returns all rounds from title events with their detailed information.
+    This endpoint is publicly accessible and doesn't require authentication.
+    
+    Parameters:
+    - skip: Number of records to skip (for pagination)
+    - limit: Maximum number of records to return (1-1000)
+    
+    Returns:
+    - List of rounds with complete information including extended descriptions, form links, and contact details
+    """
+    try:
+        # Get all rounds from title events (round_number > 0, type = TITLE)
+        rounds = db.query(UnifiedEvent).filter(
+            UnifiedEvent.round_number > 0,
+            UnifiedEvent.type == EventType.TITLE
+        ).order_by(UnifiedEvent.round_number).offset(skip).limit(limit).all()
+        
+        result = []
+        for round_data in rounds:
+            round_dict = {
+                "id": round_data.id,
+                "event_id": round_data.event_id,
+                "round_number": round_data.round_number,
+                "name": round_data.name,
+                "club": round_data.club,
+                "type": round_data.mode.value if round_data.mode else "Offline",
+                "date": round_data.date.isoformat() if round_data.date else None,
+                "description": round_data.description,
+                "extended_description": round_data.extended_description,
+                "form_link": round_data.form_link,
+                "contact": round_data.contact,
+                "status": round_data.status.value,
+                "venue": round_data.venue,
+                "is_frozen": round_data.is_frozen,
+                "is_evaluated": round_data.is_evaluated,
+                "criteria": round_data.criteria,
+                "max_score": round_data.max_score,
+                "min_score": round_data.min_score,
+                "avg_score": round_data.avg_score,
+                "created_at": round_data.created_at.isoformat(),
+                "updated_at": round_data.updated_at.isoformat() if round_data.updated_at else None
+            }
+            result.append(round_dict)
+        
+        return {
+            "rounds": result,
+            "total": len(result),
+            "skip": skip,
+            "limit": limit,
+            "message": "Rounds retrieved successfully"
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error retrieving rounds: {str(e)}")
+
+@router.get("/rolling-events")
+async def get_public_rolling_events(
+    skip: int = Query(0, ge=0, description="Number of rolling events to skip"),
+    limit: int = Query(100, ge=1, le=1000, description="Maximum number of rolling events to return"),
+    db: Session = Depends(get_db)
+):
+    """
+    Get all rolling events - PUBLIC ACCESS (No authentication required)
+    
+    Returns all rolling events with their detailed information.
+    This endpoint is publicly accessible and doesn't require authentication.
+    
+    Parameters:
+    - skip: Number of records to skip (for pagination)
+    - limit: Maximum number of records to return (1-1000)
+    
+    Returns:
+    - List of rolling events with complete information including extended descriptions, form links, and contact details
+    """
+    try:
+        # Get all rolling events (type = ROLLING, round_number = 0)
+        rolling_events = db.query(UnifiedEvent).filter(
+            UnifiedEvent.type == EventType.ROLLING,
+            UnifiedEvent.round_number == 0
+        ).offset(skip).limit(limit).all()
+        
+        result = []
+        for event in rolling_events:
+            event_dict = {
+                "id": event.id,
+                "event_id": event.event_id,
+                "event_code": event.event_code,
+                "name": event.name,
+                "club": event.club,
+                "type": event.mode.value if event.mode else "Offline",
+                "date": event.start_date.isoformat() if event.start_date else None,
+                "description": event.description,
+                "extended_description": event.extended_description,
+                "form_link": event.form_link,
+                "contact": event.contact,
+                "status": event.status.value,
+                "venue": event.venue,
+                "start_date": event.start_date.isoformat() if event.start_date else None,
+                "end_date": event.end_date.isoformat() if event.end_date else None,
+                "created_at": event.created_at.isoformat(),
+                "updated_at": event.updated_at.isoformat() if event.updated_at else None
+            }
+            result.append(event_dict)
+        
+        return {
+            "rolling_events": result,
+            "total": len(result),
+            "skip": skip,
+            "limit": limit,
+            "message": "Rolling events retrieved successfully"
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error retrieving rolling events: {str(e)}")
+
 @router.get("/health")
 async def public_health_check():
     """
@@ -597,6 +721,8 @@ async def public_health_check():
             "GET /api/public/teams/{team_id}/scores - Get team scores",
             "GET /api/public/leaderboard - Get leaderboard",
             "GET /api/public/events - Get all events with rounds",
+            "GET /api/public/rounds - Get all rounds",
+            "GET /api/public/rolling-events - Get all rolling events",
             "GET /api/public/health - Health check"
         ],
         "authentication_required": False

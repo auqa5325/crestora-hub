@@ -192,6 +192,7 @@ const PDARoundManagement = () => {
     },
   });
 
+
   // Helper functions
   const resetForm = () => {
     setFormData({
@@ -351,6 +352,7 @@ const PDARoundManagement = () => {
     navigate(`/round-evaluation?roundId=${round.id}`);
   };
 
+
   const addCriteria = () => {
     setFormData(prev => ({
       ...prev,
@@ -375,15 +377,19 @@ const PDARoundManagement = () => {
   };
 
   const getStatusColor = (round: Round) => {
-    if (round.is_evaluated) return "bg-green-100 text-green-800 border-green-200";
-    if (round.is_frozen) return "bg-blue-100 text-blue-800 border-blue-200";
+    // Check the actual status field first, then fall back to is_evaluated/is_frozen
+    const status = (round as any).status;
+    if (status === 'completed' || round.is_evaluated) return "bg-green-100 text-green-800 border-green-200";
+    if (status === 'in_progress' || round.is_frozen) return "bg-blue-100 text-blue-800 border-blue-200";
     return "bg-gray-100 text-gray-800 border-gray-200";
   };
 
   const getStatusText = (round: Round) => {
-    if (round.is_evaluated) return "Evaluated";
-    if (round.is_frozen) return "Frozen";
-    return "Active";
+    // Check the actual status field first, then fall back to is_evaluated/is_frozen
+    const status = (round as any).status;
+    if (status === 'completed' || round.is_evaluated) return "Completed";
+    if (status === 'in_progress' || round.is_frozen) return "In Progress";
+    return "Upcoming";
   };
 
   const getModeIcon = (mode?: string) => {
@@ -446,6 +452,22 @@ const PDARoundManagement = () => {
           </div>
           <div className="flex gap-2 flex-shrink-0">
             <Button 
+              onClick={() => {
+                queryClient.invalidateQueries({ queryKey: ['events'] });
+                toast({
+                  title: "Refreshing",
+                  description: "Updating events data...",
+                });
+              }}
+              variant="outline"
+              size="sm"
+              className="w-full sm:w-auto"
+            >
+              <RefreshCw className="h-4 w-4 mr-2" />
+              <span className="hidden sm:inline">Refresh</span>
+              <span className="sm:hidden">Refresh</span>
+            </Button>
+            <Button 
               onClick={() => setIsCreateModalOpen(true)}
               className="gradient-hero w-full sm:w-auto"
               size="sm"
@@ -480,19 +502,19 @@ const PDARoundManagement = () => {
                 <div className="text-xl sm:text-2xl font-bold text-green-600">
                   {crestoraEvent.rounds?.filter(r => r.is_evaluated).length || 0}
                 </div>
-                <div className="text-xs sm:text-sm text-muted-foreground">Evaluated</div>
+                <div className="text-xs sm:text-sm text-muted-foreground">Completed</div>
               </div>
               <div className="text-center p-2 sm:p-3 bg-blue-50 rounded-lg">
                 <div className="text-xl sm:text-2xl font-bold text-blue-600">
                   {crestoraEvent.rounds?.filter(r => r.is_frozen && !r.is_evaluated).length || 0}
                 </div>
-                <div className="text-xs sm:text-sm text-muted-foreground">Frozen</div>
+                <div className="text-xs sm:text-sm text-muted-foreground">In Progress</div>
               </div>
               <div className="text-center p-2 sm:p-3 bg-gray-50 rounded-lg">
                 <div className="text-xl sm:text-2xl font-bold text-gray-600">
                   {crestoraEvent.rounds?.filter(r => !r.is_frozen && !r.is_evaluated).length || 0}
                 </div>
-                <div className="text-xs sm:text-sm text-muted-foreground">Active</div>
+                <div className="text-xs sm:text-sm text-muted-foreground">Upcoming</div>
               </div>
             </div>
           </CardContent>

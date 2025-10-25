@@ -4,6 +4,7 @@ from typing import List, Optional
 from app.database import get_db
 from app.models.rounds import UnifiedEvent, EventType, EventStatus, EventMode
 from app.schemas.event import Event as EventSchema, EventCreate, EventUpdate, EventStats
+from app.auth import get_current_user
 
 router = APIRouter(prefix="/api/events", tags=["events"])
 
@@ -13,11 +14,16 @@ async def get_events(
     limit: int = Query(100, ge=1, le=1000),
     event_type: Optional[EventType] = None,
     status: Optional[EventStatus] = None,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_user)
 ):
     """Get all events with optional filtering"""
     # Get only main events (round_number = 0)
     query = db.query(UnifiedEvent).filter(UnifiedEvent.round_number == 0)
+    
+    # Filter by club if user is club representative
+    if current_user.role == "clubs":
+        query = query.filter(UnifiedEvent.club == current_user.club)
     
     if event_type:
         query = query.filter(UnifiedEvent.type == event_type)
@@ -81,6 +87,7 @@ async def get_events(
             "extended_description": event.extended_description,
             "form_link": event.form_link,
             "contact": event.contact,
+            "club": event.club,
             "created_at": event.created_at.isoformat() if event.created_at else None,
             "updated_at": event.updated_at.isoformat() if event.updated_at else None,
             "rounds": rounds_data
@@ -111,7 +118,7 @@ async def get_event_stats(db: Session = Depends(get_db)):
     )
 
 @router.get("/{event_id}", response_model=EventSchema)
-async def get_event(event_id: str, db: Session = Depends(get_db)):
+async def get_event(event_id: str, db: Session = Depends(get_db), current_user = Depends(get_current_user)):
     """Get a specific event by event_id"""
     event = db.query(UnifiedEvent).filter(
         UnifiedEvent.event_id == event_id, 
@@ -119,10 +126,15 @@ async def get_event(event_id: str, db: Session = Depends(get_db)):
     ).first()
     if not event:
         raise HTTPException(status_code=404, detail="Event not found")
+    
+    # Check access permissions for club users
+    if current_user.role == "clubs" and event.club != current_user.club:
+        raise HTTPException(status_code=403, detail="Access denied")
+    
     return event
 
 @router.get("/{event_id}/rounds", response_model=List[dict])
-async def get_event_rounds(event_id: str, db: Session = Depends(get_db)):
+async def get_event_rounds(event_id: str, db: Session = Depends(get_db), current_user = Depends(get_current_user)):
     """Get all rounds for a specific event"""
     event = db.query(UnifiedEvent).filter(
         UnifiedEvent.event_id == event_id, 
@@ -131,6 +143,10 @@ async def get_event_rounds(event_id: str, db: Session = Depends(get_db)):
     if not event:
         raise HTTPException(status_code=404, detail="Event not found")
     
+    # Check access permissions for club users
+    if current_user.role == "clubs" and event.club != current_user.club:
+        raise HTTPException(status_code=403, detail="Access denied")
+    
     rounds = db.query(UnifiedEvent).filter(
         UnifiedEvent.event_id == event_id,
         UnifiedEvent.round_number > 0
@@ -138,8 +154,12 @@ async def get_event_rounds(event_id: str, db: Session = Depends(get_db)):
     return rounds
 
 @router.post("/", response_model=EventSchema)
-async def create_event(event_data: EventCreate, db: Session = Depends(get_db)):
+async def create_event(event_data: EventCreate, db: Session = Depends(get_db), current_user = Depends(get_current_user)):
     """Create a new event"""
+    # Check access permissions for club users
+    if current_user.role == "clubs" and event_data.club != current_user.club:
+        raise HTTPException(status_code=403, detail="Access denied")
+    
     # Check if event_id already exists
     existing_event = db.query(UnifiedEvent).filter(
         UnifiedEvent.event_id == event_data.event_id,
@@ -159,7 +179,11 @@ async def create_event(event_data: EventCreate, db: Session = Depends(get_db)):
         start_date=event_data.start_date,
         end_date=event_data.end_date,
         venue=event_data.venue,
-        description=event_data.description
+        description=event_data.description,
+        extended_description=event_data.extended_description,
+        form_link=event_data.form_link,
+        contact=event_data.contact,
+        club=event_data.club
     )
     
     db.add(db_event)
@@ -190,7 +214,8 @@ async def create_event(event_data: EventCreate, db: Session = Depends(get_db)):
 async def update_event(
     event_id: str, 
     event_update: EventUpdate, 
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_user)
 ):
     """Update an event"""
     event = db.query(UnifiedEvent).filter(
@@ -199,6 +224,10 @@ async def update_event(
     ).first()
     if not event:
         raise HTTPException(status_code=404, detail="Event not found")
+    
+    # Check access permissions for club users
+    if current_user.role == "clubs" and event.club != current_user.club:
+        raise HTTPException(status_code=403, detail="Access denied")
     
     # Update only provided fields
     update_data = event_update.dict(exclude_unset=True)
@@ -211,7 +240,7 @@ async def update_event(
     return event
 
 @router.delete("/{event_id}")
-async def delete_event(event_id: str, db: Session = Depends(get_db)):
+async def delete_event(event_id: str, db: Session = Depends(get_db), current_user = Depends(get_current_user)):
     """Delete an event"""
     event = db.query(UnifiedEvent).filter(
         UnifiedEvent.event_id == event_id,
@@ -219,6 +248,10 @@ async def delete_event(event_id: str, db: Session = Depends(get_db)):
     ).first()
     if not event:
         raise HTTPException(status_code=404, detail="Event not found")
+    
+    # Check access permissions for club users
+    if current_user.role == "clubs" and event.club != current_user.club:
+        raise HTTPException(status_code=403, detail="Access denied")
     
     # Delete all rounds for this event first
     db.query(UnifiedEvent).filter(UnifiedEvent.event_id == event_id).delete()

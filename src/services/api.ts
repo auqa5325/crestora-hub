@@ -361,10 +361,39 @@ class ApiService {
     end_date?: string;
     venue?: string;
     description?: string;
+    extended_description?: string;
+    form_link?: string;
+    contact?: string;
+    club?: string;
+    rounds?: any[];
   }): Promise<Event> {
     return this.request<Event>('/events', {
       method: 'POST',
       body: JSON.stringify(eventData),
+    });
+  }
+
+  async updateEvent(eventId: string, eventData: {
+    name?: string;
+    status?: 'upcoming' | 'in_progress' | 'completed';
+    start_date?: string;
+    end_date?: string;
+    venue?: string;
+    description?: string;
+    extended_description?: string;
+    form_link?: string;
+    contact?: string;
+    club?: string;
+  }): Promise<Event> {
+    return this.request<Event>(`/events/${eventId}`, {
+      method: 'PUT',
+      body: JSON.stringify(eventData),
+    });
+  }
+
+  async deleteEvent(eventId: string): Promise<{message: string}> {
+    return this.request<{message: string}>(`/events/${eventId}`, {
+      method: 'DELETE',
     });
   }
 

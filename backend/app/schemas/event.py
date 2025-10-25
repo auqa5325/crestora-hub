@@ -37,6 +37,10 @@ class EventBase(BaseModel):
     end_date: Optional[date] = None
     venue: Optional[str] = None
     description: Optional[str] = None
+    extended_description: Optional[str] = None
+    form_link: Optional[str] = None
+    contact: Optional[str] = None
+    club: Optional[str] = None
     max_rounds: int = 1
 
 class EventCreate(EventBase):
@@ -50,6 +54,10 @@ class EventUpdate(BaseModel):
     end_date: Optional[date] = None
     venue: Optional[str] = None
     description: Optional[str] = None
+    extended_description: Optional[str] = None
+    form_link: Optional[str] = None
+    contact: Optional[str] = None
+    club: Optional[str] = None
     max_rounds: Optional[int] = None
 
 class Event(EventBase):
