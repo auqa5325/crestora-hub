@@ -483,14 +483,14 @@ const Leaderboard = () => {
         .filter(r => r.is_evaluated)
         .sort((a, b) => b.round_number - a.round_number)[0];
       
-      const roundNumber = latestRound?.round_number || undefined;
+      const roundNumber = latestRound?.round_number;
       
       const blob = await apiService.exportLeaderboardPDF(roundNumber, formatType);
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
       a.download = formatType === 'official' 
-        ? `Crestora_Round${roundNumber || 3}_results.pdf`
+        ? `Crestora_Round${roundNumber}_results.pdf`
         : 'CRESTORA25_Detailed_Leaderboard.pdf';
       document.body.appendChild(a);
       a.click();
