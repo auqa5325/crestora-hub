@@ -555,12 +555,6 @@ class ApiService {
     });
   }
 
-  async unfreezeRound(roundId: number): Promise<any> {
-    return this.request<any>(`/rounds/rounds/${roundId}/unfreeze`, {
-      method: 'POST',
-    });
-  }
-
   async handleAbsentees(roundId: number, eliminateAbsentees: boolean): Promise<any> {
     return this.request<any>(`/rounds/rounds/${roundId}/handle-absentees`, {
       method: 'POST',

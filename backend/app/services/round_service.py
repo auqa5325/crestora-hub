@@ -225,37 +225,6 @@ class RoundService:
             "participated_count": len(team_scores)
         }
 
-    def unfreeze_round(self, round_id: int, user_role: str) -> Dict[str, Any]:
-        """Unfreeze round evaluations (PDA only) - only if round is not evaluated yet"""
-        if user_role != "admin":
-            raise ValueError("Only PDA members can unfreeze rounds")
-        
-        round_obj = self.db.query(UnifiedEvent).filter(UnifiedEvent.id == round_id).first()
-        if not round_obj:
-            raise ValueError("Round not found")
-        
-        if not round_obj.is_frozen:
-            raise ValueError("Round is not frozen")
-        
-        if round_obj.is_evaluated:
-            raise ValueError("Cannot unfreeze evaluated rounds")
-        
-        # Reset round statistics and frozen status
-        round_obj.is_frozen = False
-        round_obj.max_score = None
-        round_obj.min_score = None
-        round_obj.avg_score = None
-        round_obj.participated_count = 0
-        
-        self.db.commit()
-        self.db.refresh(round_obj)
-        
-        return {
-            "round_id": round_id,
-            "is_frozen": False,
-            "message": "Round unfrozen successfully"
-        }
-
 
     def get_round_evaluations(self, round_id: int, user_role: str, user_club: str = None) -> List[TeamScore]:
         """Get all team evaluations for a round"""
