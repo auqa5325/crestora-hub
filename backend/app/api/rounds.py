@@ -98,6 +98,16 @@ async def freeze_round(
     round_service = RoundService(db)
     return round_service.freeze_round(round_id, current_user.role, current_user.club)
 
+@router.post("/rounds/{round_id}/unfreeze")
+async def unfreeze_round(
+    round_id: int,
+    db: Session = Depends(get_db),
+    current_user = Depends(require_pda_role())
+):
+    """Unfreeze round evaluations (PDA only, and only if not evaluated yet)"""
+    round_service = RoundService(db)
+    return round_service.unfreeze_round(round_id, current_user.role, current_user.club)
+
 @router.post("/rounds/{round_id}/handle-absentees")
 async def handle_absentees(
     round_id: int,
