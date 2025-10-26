@@ -14,6 +14,7 @@ import {
   Settings, 
   Save, 
   Lock, 
+  Unlock,
   Download,
   Plus,
   Trash2,
@@ -90,6 +91,7 @@ const RoundEvaluation = () => {
   const [teamEvaluations, setTeamEvaluations] = useState<TeamEvaluation[]>([]);
   const [isCriteriaModalOpen, setIsCriteriaModalOpen] = useState(false);
   const [isFreezeDialogOpen, setIsFreezeDialogOpen] = useState(false);
+  const [isUnfreezeDialogOpen, setIsUnfreezeDialogOpen] = useState(false);
   const [roundStats, setRoundStats] = useState<RoundStats | null>(null);
   const initializedRef = useRef(false);
   const [unsavedChanges, setUnsavedChanges] = useState<Set<string>>(new Set());
@@ -231,6 +233,28 @@ const RoundEvaluation = () => {
       toast({
         title: "Error",
         description: "Failed to freeze round. Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Unfreeze round mutation
+  const unfreezeRoundMutation = useMutation({
+    mutationFn: () => apiService.unfreezeRound(selectedRoundId!),
+    onSuccess: (data) => {
+      toast({
+        title: "Round unfrozen",
+        description: "Round has been unfrozen and can be modified again.",
+      });
+      setRoundStats(data);
+      queryClient.invalidateQueries({ queryKey: ['round-stats', selectedRoundId] });
+      queryClient.invalidateQueries({ queryKey: ['round-evaluations', selectedRoundId] });
+      setIsUnfreezeDialogOpen(false);
+    },
+    onError: (error) => {
+      toast({
+        title: "Error",
+        description: "Failed to unfreeze round. Please try again.",
         variant: "destructive",
       });
     },
@@ -517,6 +541,11 @@ const RoundEvaluation = () => {
   // Freeze round
   const handleFreezeRound = () => {
     freezeRoundMutation.mutate();
+  };
+
+  // Unfreeze round
+  const handleUnfreezeRound = () => {
+    unfreezeRoundMutation.mutate();
   };
 
   // Handle absentees
@@ -840,6 +869,19 @@ const RoundEvaluation = () => {
                   <Lock className="h-4 w-4 mr-2" />
                   <span className="hidden xs:inline">Freeze Round</span>
                   <span className="xs:hidden">Freeze</span>
+                </Button>
+              )}
+
+              {/* Unfreeze Round Button - Only for PDA admins and only if frozen but not evaluated */}
+              {stats?.is_frozen && !stats?.is_evaluated && user?.role === 'admin' && (
+                <Button
+                  onClick={() => setIsUnfreezeDialogOpen(true)}
+                  className="bg-orange-600 hover:bg-orange-700 flex-1 sm:flex-none"
+                  size="sm"
+                >
+                  <Unlock className="h-4 w-4 mr-2" />
+                  <span className="hidden xs:inline">Unfreeze Round</span>
+                  <span className="xs:hidden">Unfreeze</span>
                 </Button>
               )}
             </div>
@@ -1472,6 +1514,24 @@ const RoundEvaluation = () => {
               <AlertDialogCancel>Cancel</AlertDialogCancel>
               <AlertDialogAction onClick={handleFreezeRound}>
                 Freeze Round
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        {/* Unfreeze Round Dialog */}
+        <AlertDialog open={isUnfreezeDialogOpen} onOpenChange={setIsUnfreezeDialogOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Unfreeze Round Evaluations</AlertDialogTitle>
+              <AlertDialogDescription>
+                Are you sure? This will allow modifications to the round evaluations again. Only PDA admins can unfreeze rounds that are not yet evaluated.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction onClick={handleUnfreezeRound} className="bg-orange-600 hover:bg-orange-700">
+                Unfreeze Round
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
