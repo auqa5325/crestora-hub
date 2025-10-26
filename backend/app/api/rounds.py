@@ -511,8 +511,20 @@ async def update_event_or_round(
         
         # Update only provided fields
         update_data = event_update.dict(exclude_unset=True)
+        
+        # Convert string dates to date objects
+        from datetime import datetime
+        date_fields = ['date', 'start_date', 'end_date']
+        for field in date_fields:
+            if field in update_data and update_data[field]:
+                try:
+                    update_data[field] = datetime.strptime(update_data[field], '%Y-%m-%d').date()
+                except ValueError as e:
+                    raise HTTPException(status_code=422, detail=f"Invalid date format for {field}: {update_data[field]}. Expected YYYY-MM-DD")
+        
         for field, value in update_data.items():
-            setattr(event, field, value)
+            if hasattr(event, field):
+                setattr(event, field, value)
         
         db.commit()
         db.refresh(event)

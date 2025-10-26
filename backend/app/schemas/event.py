@@ -50,8 +50,8 @@ class EventUpdate(BaseModel):
     name: Optional[str] = None
     event_code: Optional[str] = None
     status: Optional[EventStatus] = None
-    start_date: Optional[date] = None
-    end_date: Optional[date] = None
+    start_date: Optional[str] = None
+    end_date: Optional[str] = None
     venue: Optional[str] = None
     description: Optional[str] = None
     extended_description: Optional[str] = None

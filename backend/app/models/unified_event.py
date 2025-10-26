@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, DateTime, Enum, Text, Date
+from sqlalchemy import Column, Integer, String, DateTime, Enum, Text, Date, Boolean, Float, JSON
 from sqlalchemy.sql import func
 from app.database import Base
 import enum
@@ -52,6 +52,21 @@ class UnifiedEvent(Base):
     
     # Content
     description = Column(Text, nullable=True)
+    extended_description = Column(Text, nullable=True)
+    form_link = Column(String(500), nullable=True)
+    contact = Column(String(200), nullable=True)
+    
+    # Round-specific fields
+    round_code = Column(String(50), nullable=True)
+    participated_count = Column(Integer, default=0)
+    shortlisted_teams = Column(JSON, nullable=True)  # Array of team_ids
+    is_evaluated = Column(Boolean, default=False)
+    is_frozen = Column(Boolean, default=False)
+    is_wildcard = Column(Boolean, default=False)
+    criteria = Column(JSON, nullable=True)  # Array of {name, max_points}
+    max_score = Column(Float, nullable=True)
+    min_score = Column(Float, nullable=True)
+    avg_score = Column(Float, nullable=True)
     
     # Status (applies to both events and rounds)
     status = Column(Enum(EventStatus), default=EventStatus.UPCOMING)

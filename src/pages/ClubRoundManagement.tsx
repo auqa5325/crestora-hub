@@ -177,17 +177,20 @@ const ClubRoundManagement = () => {
   const handleUpdateRound = () => {
     if (!editingRound || !crestoraEvent) return;
 
-    const roundData = {
+    const roundData: any = {
       name: formData.name,
       mode: formData.mode,
-      date: formData.date || undefined,
-      description: formData.description,
-      extended_description: formData.extended_description,
-      form_link: formData.form_link,
-      contact: formData.contact,
       status: formData.status,
       is_wildcard: formData.is_wildcard
     };
+
+    // Only include optional fields if they have values
+    if (formData.date && formData.date.trim()) roundData.date = formData.date;
+    if (formData.venue && formData.venue.trim()) roundData.venue = formData.venue;
+    if (formData.description && formData.description.trim()) roundData.description = formData.description;
+    if (formData.extended_description && formData.extended_description.trim()) roundData.extended_description = formData.extended_description;
+    if (formData.form_link && formData.form_link.trim()) roundData.form_link = formData.form_link;
+    if (formData.contact && formData.contact.trim()) roundData.contact = formData.contact;
 
     updateRoundMutation.mutate({
       eventId: crestoraEvent.event_id,

@@ -1,5 +1,5 @@
-from pydantic import BaseModel, Field
-from typing import List, Optional, Dict, Any
+from pydantic import BaseModel, Field, field_validator
+from typing import List, Optional, Dict, Any, Union
 from datetime import date, datetime
 from app.models.rounds import EventType, EventStatus, EventMode
 
@@ -39,9 +39,9 @@ class UnifiedEventUpdate(BaseModel):
     name: Optional[str] = Field(None, max_length=200)
     mode: Optional[EventMode] = None
     club: Optional[str] = Field(None, max_length=100)
-    date: Optional[date] = None
-    start_date: Optional[date] = None
-    end_date: Optional[date] = None
+    date: Optional[str] = None
+    start_date: Optional[str] = None
+    end_date: Optional[str] = None
     venue: Optional[str] = Field(None, max_length=200)
     description: Optional[str] = None
     extended_description: Optional[str] = None
