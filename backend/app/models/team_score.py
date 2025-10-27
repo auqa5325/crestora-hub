@@ -13,7 +13,7 @@ class TeamScore(Base):
     score = Column(Float, nullable=False, default=0.0)  # Normalized to 100
     criteria_scores = Column(JSON, nullable=True)  # {criteria_name: score}
     raw_total_score = Column(Float, nullable=False, default=0.0)
-    is_normalized = Column(Boolean, default=False)
+    is_normalized = Column(Boolean, default=True)
     is_present = Column(Boolean, default=True)  # Whether team was present for evaluation
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())

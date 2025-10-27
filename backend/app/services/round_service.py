@@ -38,7 +38,7 @@ class RoundService:
                 event_id=db_round.event_id,
                 score=0.0,
                 raw_total_score=0.0,
-                is_normalized=False,
+                is_normalized=True,  # Default to True, will be set to False only if criteria are malformed
                 is_present=False if db_round.is_wildcard else True  # Default to absent for wildcard rounds
             )
             self.db.add(team_score)
@@ -128,7 +128,7 @@ class RoundService:
                 event_id=round_obj.event_id,
                 score=0.0,
                 raw_total_score=0.0,
-                is_normalized=False,
+                is_normalized=True,  # Default to True, will be set to False only if criteria are malformed
                 is_present=is_present
             )
             self.db.add(team_score)
@@ -474,8 +474,8 @@ class RoundService:
         elif shortlist_type == "threshold":
             # Shortlist teams with score >= threshold
             threshold = float(value)
-            if threshold < 0 or threshold > 100:
-                raise ValueError(f"Invalid threshold value: {threshold}. Must be between 0 and 100")
+            if threshold < 0:
+                raise ValueError(f"Invalid threshold value: {threshold}. Must be >= 0")
             for team_data in all_teams_with_scores:
                 if team_data['score'] >= threshold:
                     shortlisted_teams.append(team_data)
@@ -546,7 +546,7 @@ class RoundService:
         ).all()
         
         # Create a dictionary of scores for easier lookup
-        team_scores_dict = {score.round_id: score.score for score in team_scores}
+        team_scores_dict = {score.round_id: score.raw_total_score for score in team_scores}  # Use raw scores for shortlisting
         
         # Calculate weighted average (including 0 scores for missing rounds)
         total_weighted_score = 0.0

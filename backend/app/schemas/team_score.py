@@ -9,7 +9,7 @@ class TeamScoreBase(BaseModel):
     score: float = Field(..., ge=0, le=100)  # Normalized to 100
     criteria_scores: Optional[Dict[str, float]] = None
     raw_total_score: float = Field(..., ge=0)
-    is_normalized: bool = False
+    is_normalized: bool = True
     is_present: bool = True
 
 class TeamScoreCreate(TeamScoreBase):
