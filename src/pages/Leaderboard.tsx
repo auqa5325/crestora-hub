@@ -307,10 +307,10 @@ const Leaderboard = () => {
       return;
     }
     
-    if (shortlistType === 'threshold' && shortlistValue < 0) {
+    if (shortlistType === 'threshold' && (shortlistValue < 0 || shortlistValue > 100)) {
       toast({
         title: "Invalid Input",
-        description: "Please enter a valid raw score threshold (≥ 0)",
+        description: "Please enter a valid score between 0 and 100",
         variant: "destructive",
       });
       return;
@@ -1074,11 +1074,12 @@ const Leaderboard = () => {
 
               {shortlistType === 'threshold' && (
                 <div>
-                  <Label htmlFor="threshold">Raw Score Threshold</Label>
+                  <Label htmlFor="threshold">Score Threshold</Label>
                   <Input
                     id="threshold"
                     type="number"
                     min="0"
+                    max="100"
                     step="0.1"
                     value={shortlistValue}
                     onChange={(e) => {
@@ -1100,7 +1101,7 @@ const Leaderboard = () => {
                     }}
                   />
                   <p className="text-sm text-muted-foreground mt-1">
-                    {getThresholdTeamCount()} teams have raw score ≥ {shortlistValue}
+                    {getThresholdTeamCount()} teams have score ≥ {shortlistValue}
                   </p>
                 </div>
               )}

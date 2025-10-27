@@ -399,7 +399,7 @@ async def shortlist_teams_by_overall_score(
         ).all()
         
         # Create a dictionary of scores for easier lookup
-        team_scores_dict = {score.round_id: score.raw_total_score for score in team_scores}  # Use raw scores for shortlisting
+        team_scores_dict = {score.round_id: score.score for score in team_scores}  # Use normalized scores for shortlisting
         
         # Calculate weighted average (including 0 scores for missing rounds)
         total_weighted_score = 0.0
