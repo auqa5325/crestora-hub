@@ -337,7 +337,7 @@ const RollingEventsManagement = () => {
   };
 
   const handleViewResults = (eventId: string) => {
-    navigate(`/rolling-results?eventId=${eventId}`);
+    navigate(`/rolling-results-management?eventId=${eventId}`);
   };
 
   if (isLoading) {

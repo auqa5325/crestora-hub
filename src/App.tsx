@@ -9,7 +9,6 @@ import Index from "./pages/Index";
 import Login from "./pages/Login";
 // import Dashboard from "./pages/Dashboard"; // Temporarily hidden
 import Events from "./pages/Events";
-import RollingEventsResults from "./pages/RollingEventsResults";
 import RoundsDashboard from "./pages/RoundsDashboard";
 import RoundEvaluation from "./pages/RoundEvaluation";
 import WildcardRoundEvaluation from "./pages/WildcardRound";
@@ -20,6 +19,7 @@ import Leaderboard from "./pages/Leaderboard";
 import Finance from "./pages/Finance";
 import NotFound from "./pages/NotFound";
 import RollingEventsManagement from "./pages/RollingEventsManagement";
+import RollingResultsManagement from "./pages/RollingResultsManagement";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -56,14 +56,6 @@ const App = () => (
               element={
                 <ProtectedRoute requiredRoles={['admin', 'clubs']}>
                   <Events />
-                </ProtectedRoute>
-              } 
-            />
-            <Route 
-              path="/rolling-results" 
-              element={
-                <ProtectedRoute requiredRoles={['admin', 'clubs']}>
-                  <RollingEventsResults />
                 </ProtectedRoute>
               } 
             />
@@ -128,6 +120,14 @@ const App = () => (
               element={
                 <ProtectedRoute requiredRoles={['admin', 'clubs']}>
                   <RollingEventsManagement />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/rolling-results-management" 
+              element={
+                <ProtectedRoute requiredRoles={['admin', 'clubs']}>
+                  <RollingResultsManagement />
                 </ProtectedRoute>
               } 
             />

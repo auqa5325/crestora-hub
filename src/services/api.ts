@@ -847,6 +847,78 @@ class ApiService {
     return response.blob();
   }
 
+  // Rolling Results CSV Upload API
+  async uploadRollingResultsCsv(file: File, eventId: string): Promise<{
+    message: string;
+    file_key: string;
+    file_url: string;
+    event_id: string;
+    filename: string;
+  }> {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('event_id', eventId);
+    
+    const token = localStorage.getItem('auth_token');
+    const response = await fetch(`${API_BASE_URL}/rolling-results/upload-csv`, {
+      method: 'POST',
+      headers: {
+        ...(token && { 'Authorization': `Bearer ${token}` }),
+      },
+      body: formData,
+    });
+    
+    if (!response.ok) {
+      let errorMessage = `Upload failed: ${response.status} ${response.statusText}`;
+      try {
+        const errorData = await response.json();
+        if (errorData.detail) {
+          errorMessage = errorData.detail;
+        }
+      } catch (e) {
+        // If we can't parse the error response, use the default message
+      }
+      throw new Error(errorMessage);
+    }
+    
+    return response.json();
+  }
+
+  async getRollingResultsFiles(): Promise<{
+    files: Array<{
+      key: string;
+      filename: string;
+      size: number;
+      lastModified: string;
+      eventName: string;
+      url: string;
+    }>;
+  }> {
+    try {
+      const result = await this.request<{
+        files: Array<{
+          key: string;
+          filename: string;
+          size: number;
+          lastModified: string;
+          eventName: string;
+          url: string;
+        }>;
+      }>('/rolling-results/files');
+      return result;
+    } catch (error) {
+      console.warn('Failed to fetch rolling results files:', error);
+      // Return empty files array if the request fails
+      return { files: [] };
+    }
+  }
+
+  async deleteRollingResultsFile(fileKey: string): Promise<{message: string}> {
+    return this.request<{message: string}>(`/rolling-results/files/${encodeURIComponent(fileKey)}`, {
+      method: 'DELETE',
+    });
+  }
+
 }
 
 export const apiService = new ApiService();
