@@ -10,12 +10,12 @@ export default defineConfig(({ mode }) => ({
     port: 8080,
     watch: {
       ignored: [
-        '**/backend/**',
-        '**/myvenv/**',
-        '**/venv/**',
-        '**/node_modules/**',
-        '**/.git/**',
-        '**/.DS_Store'
+        "**/backend/**",
+        "**/myvenv/**",
+        "**/venv/**",
+        "**/node_modules/**",
+        "**/.git/**",
+        "**/.DS_Store"
       ]
     }
   },
