@@ -27,3 +27,5 @@ dist-ssr
 # Gmail Integration Files
 backend/credentials.json
 backend/token.json
+node_modules/
+**/node_modules/
