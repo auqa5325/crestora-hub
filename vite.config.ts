@@ -8,6 +8,16 @@ export default defineConfig(({ mode }) => ({
   server: {
     host: "::",
     port: 8080,
+    watch: {
+      ignored: [
+        '**/backend/**',
+        '**/myvenv/**',
+        '**/venv/**',
+        '**/node_modules/**',
+        '**/.git/**',
+        '**/.DS_Store'
+      ]
+    }
   },
   plugins: [react(), mode === "development" && componentTagger()].filter(Boolean),
   resolve: {

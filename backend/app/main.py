@@ -26,6 +26,7 @@ app.add_middleware(
         "http://127.0.0.1:3000",
         "http://3.110.143.60:8080",
         "http://13.127.109.143:8080",
+        "http://13.127.109.143:8080",
     ],
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
