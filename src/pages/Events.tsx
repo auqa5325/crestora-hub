@@ -29,36 +29,12 @@ import { useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 
-// ReadMoreText Component
-const ReadMoreText = ({ text, maxLength = 100 }: { text: string; maxLength?: number }) => {
-  const [isExpanded, setIsExpanded] = useState(false);
-  
-  if (text.length <= maxLength) {
-    return <span>{text}</span>;
-  }
-  
-  const truncatedText = text.substring(0, maxLength);
-  const displayText = isExpanded ? text : truncatedText;
-  
-  return (
-    <span>
-      {displayText}
-      {!isExpanded && "..."}
-      <button
-        onClick={() => setIsExpanded(!isExpanded)}
-        className="ml-1 text-blue-600 hover:text-blue-800 underline text-xs"
-      >
-        {isExpanded ? "Read Less" : "Read More"}
-      </button>
-    </span>
-  );
-};
-
 const Events = () => {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editingEvent, setEditingEvent] = useState<Event | null>(null);
   const [editingRound, setEditingRound] = useState<Round | null>(null);
   const [isAddingRound, setIsAddingRound] = useState(false);
   const [isSavingRound, setIsSavingRound] = useState(false);
@@ -82,20 +58,14 @@ const Events = () => {
     refetchInterval: 30000,
   });
 
-  const getStatusColor = (round: Round) => {
-    // Check the actual status field first, then fall back to is_evaluated/is_frozen
-    const status = (round as any).status;
-    if (status === 'completed' || round.is_evaluated) return "bg-green-100 text-green-800 border-green-200";
-    if (status === 'in_progress' || round.is_frozen) return "bg-blue-100 text-blue-800 border-blue-200";
-    return "bg-gray-100 text-gray-800 border-gray-200";
+  const getStatusColor = (isEvaluated: boolean) => {
+    return isEvaluated 
+      ? "bg-primary/10 text-primary border-primary/20" 
+      : "bg-muted text-muted-foreground border-border";
   };
 
-  const formatStatus = (round: Round) => {
-    // Check the actual status field first, then fall back to is_evaluated/is_frozen
-    const status = (round as any).status;
-    if (status === 'completed' || round.is_evaluated) return "Completed";
-    if (status === 'in_progress' || round.is_frozen) return "In Progress";
-    return "Upcoming";
+  const formatStatus = (isEvaluated: boolean) => {
+    return isEvaluated ? "Evaluated" : "Not Evaluated";
   };
 
   const formatEventType = (type: string) => {
@@ -137,12 +107,14 @@ const Events = () => {
   };
 
   const handleEditEvent = (event: Event) => {
+    setEditingEvent({ ...event });
     setEditingRound(null);
     setIsAddingRound(false);
   };
 
   const handleEditRound = (round: Round) => {
     setEditingRound({ ...round });
+    setEditingEvent(null);
     setIsAddingRound(false);
   };
 
@@ -162,6 +134,7 @@ const Events = () => {
       created_at: new Date().toISOString(),
     };
     setEditingRound(newRound);
+    setEditingEvent(null);
     setIsAddingRound(true);
   };
 
@@ -207,6 +180,18 @@ const Events = () => {
     }
   };
 
+  const handleSaveEvent = async () => {
+    if (!editingEvent) return;
+    
+    try {
+      // Here you would call the API to update the event
+      toast.success("Event updated successfully!");
+      queryClient.invalidateQueries({ queryKey: ['events'] });
+      setEditingEvent(null);
+    } catch (error) {
+      toast.error("Failed to update event");
+    }
+  };
 
   const handleCreateEvent = async () => {
     // Validate required fields
@@ -299,9 +284,9 @@ const Events = () => {
     console.log('Auth token exists:', !!token);
     console.log('User role:', user?.role);
     
-    // Check if user has permission (admin or clubs)
-    if (user?.role !== 'admin' && user?.role !== 'clubs') {
-      toast.error("Only admin and club users can create or update rounds");
+    // Check if user is admin
+    if (user?.role !== 'admin') {
+      toast.error("Only admin users can create or update rounds");
       setIsSavingRound(false);
       return;
     }
@@ -519,9 +504,9 @@ const Events = () => {
                 <div className="flex items-start justify-between mb-2">
                   <Badge
                     variant="outline"
-                    className="bg-gray-100 text-gray-800 border-gray-200"
+                    className={getStatusColor(false)}
                   >
-                    Upcoming
+                    {formatStatus(false)}
                   </Badge>
                   <div className="flex items-center gap-2">
                     <span className="text-xs text-muted-foreground font-mono">
@@ -592,12 +577,10 @@ const Events = () => {
                   <Badge variant="secondary" className="text-xs">
                     {formatEventType(event.type)}
                   </Badge>
-                  {(user?.role === 'admin' || user?.role === 'clubs') && (
+                  {user?.role === 'admin' && (
                     <div className="flex items-center gap-1">
                       <Eye className="h-3 w-3 text-muted-foreground" />
-                      <span className="text-xs text-muted-foreground">
-                        {user?.role === 'admin' ? 'Click to view/edit' : 'Click to view'}
-                      </span>
+                      <span className="text-xs text-muted-foreground">Click to view/edit</span>
                     </div>
                   )}
                 </div>
@@ -612,10 +595,10 @@ const Events = () => {
             <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>
-                  Event Details - {selectedEvent.name}
+                  {editingEvent ? 'Edit Event' : 'Event Details'} - {selectedEvent.name}
                 </DialogTitle>
                 <DialogDescription>
-                  Complete event and round details
+                  {editingEvent ? 'Modify event and round information' : 'Complete event and round details'}
                 </DialogDescription>
               </DialogHeader>
               
@@ -623,6 +606,10 @@ const Events = () => {
                 <TabsList className="grid w-full grid-cols-2">
                   <TabsTrigger value="overview">Overview</TabsTrigger>
                   <TabsTrigger value="rounds">Rounds ({selectedEvent.rounds.length})</TabsTrigger>
+                  {/* Disabled for now */}
+                  {/* {user?.role === 'admin' && (
+                    <TabsTrigger value="edit">Edit</TabsTrigger>
+                  )} */}
                 </TabsList>
                 
                 <TabsContent value="overview" className="space-y-6">
@@ -644,8 +631,8 @@ const Events = () => {
                       </div>
                       <div>
                         <Label className="text-sm font-medium text-muted-foreground">Status</Label>
-                        <Badge className="bg-gray-100 text-gray-800 border-gray-200">
-                          Upcoming
+                        <Badge className={getStatusColor(false)}>
+                          {formatStatus(false)}
                         </Badge>
                       </div>
                       <div>
@@ -667,39 +654,6 @@ const Events = () => {
                         <p className="text-sm mt-1">{selectedEvent.description}</p>
                       </div>
                     )}
-                    {selectedEvent.extended_description && (
-                      <div>
-                        <Label className="text-sm font-medium text-muted-foreground">Extended Description</Label>
-                        <div className="text-sm mt-1">
-                          <ReadMoreText text={selectedEvent.extended_description} maxLength={150} />
-                        </div>
-                      </div>
-                    )}
-                    {(selectedEvent.form_link || selectedEvent.contact) && (
-                      <div className="space-y-2">
-                        {selectedEvent.form_link && (
-                          <div>
-                            <Label className="text-sm font-medium text-muted-foreground">Registration Form</Label>
-                            <div className="mt-1">
-                              <a 
-                                href={selectedEvent.form_link} 
-                                target="_blank" 
-                                rel="noopener noreferrer"
-                                className="text-blue-600 hover:text-blue-800 underline text-sm"
-                              >
-                                {selectedEvent.form_link}
-                              </a>
-                            </div>
-                          </div>
-                        )}
-                        {selectedEvent.contact && (
-                          <div>
-                            <Label className="text-sm font-medium text-muted-foreground">Contact</Label>
-                            <p className="text-sm mt-1">{selectedEvent.contact}</p>
-                          </div>
-                        )}
-                      </div>
-                    )}
                   </div>
                 </TabsContent>
                 
@@ -708,7 +662,8 @@ const Events = () => {
                   <div className="space-y-4">
                     <div className="flex items-center justify-between">
                       <h3 className="text-lg font-semibold">Event Rounds</h3>
-                      {(user?.role === 'admin' || user?.role === 'clubs') && (
+                      {/* Disabled for now */}
+                      {/* {user?.role === 'admin' && (
                         <Button
                           size="sm"
                           onClick={() => handleAddRound(selectedEvent)}
@@ -716,7 +671,7 @@ const Events = () => {
                           <Plus className="h-4 w-4 mr-2" />
                           Add Round
                         </Button>
-                      )}
+                      )} */}
                     </div>
                     
                     <div className="space-y-4">
@@ -727,8 +682,8 @@ const Events = () => {
                               <div className="space-y-2 flex-1">
                                 <div className="flex items-center gap-2">
                                   <Badge variant="outline">Round {round.round_number}</Badge>
-                                  <Badge className={getStatusColor(round)}>
-                                    {formatStatus(round)}
+                                  <Badge className={getStatusColor(round.is_evaluated)}>
+                                    {formatStatus(round.is_evaluated)}
                                   </Badge>
                                 </div>
                                 <h4 className="font-semibold">{round.name}</h4>
@@ -755,59 +710,27 @@ const Events = () => {
                                     {round.description}
                                   </p>
                                 )}
-                                {round.extended_description && (
-                                  <div className="text-sm text-muted-foreground mt-1">
-                                    <span className="font-medium">Details:</span> 
-                                    <ReadMoreText text={round.extended_description} maxLength={100} />
-                                  </div>
-                                )}
-                                {(round.form_link || round.contact) && (
-                                  <div className="mt-2 space-y-1">
-                                    {round.form_link && (
-                                      <div className="flex items-center gap-1 text-xs">
-                                        <Globe className="h-3 w-3" />
-                                        <a 
-                                          href={round.form_link} 
-                                          target="_blank" 
-                                          rel="noopener noreferrer"
-                                          className="text-blue-600 hover:text-blue-800 underline"
-                                        >
-                                          Registration Form
-                                        </a>
-                                      </div>
-                                    )}
-                                    {round.contact && (
-                                      <div className="flex items-center gap-1 text-xs">
-                                        <Users className="h-3 w-3" />
-                                        <span>Contact: {round.contact}</span>
-                                      </div>
-                                    )}
-                                  </div>
-                                )}
                               </div>
-                              {(user?.role === 'admin' || user?.role === 'clubs') && (
+                              {/* Disabled for now */}
+                              {/* {user?.role === 'admin' && (
                                 <div className="flex items-center gap-2">
                                   <Button
                                     size="sm"
                                     variant="ghost"
-                                    onClick={() => setEditingRound(round)}
+                                    onClick={() => handleEditRound(round)}
                                   >
                                     <Edit className="h-3 w-3" />
                                   </Button>
-                                  {user?.role === 'admin' && (
-                                    <Button
-                                      size="sm"
-                                      variant="ghost"
-                                      className="text-red-600 hover:text-red-700"
-                                      onClick={() => handleDeleteRound(round)}
-                                      disabled={round.is_frozen || round.is_evaluated}
-                                      title={round.is_frozen || round.is_evaluated ? "Cannot delete frozen or evaluated rounds" : "Delete round"}
-                                    >
-                                      <Trash2 className="h-3 w-3" />
-                                    </Button>
-                                  )}
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    className="text-red-600 hover:text-red-700"
+                                    onClick={() => handleDeleteRound(round)}
+                                  >
+                                    <Trash2 className="h-3 w-3" />
+                                  </Button>
                                 </div>
-                              )}
+                              )} */}
                             </div>
                           </CardContent>
                         </Card>
@@ -821,12 +744,13 @@ const Events = () => {
                             <p className="text-muted-foreground mb-4">
                               This event doesn't have any rounds configured.
                             </p>
-                            {(user?.role === 'admin' || user?.role === 'clubs') && (
+                            {/* Disabled for now */}
+                            {/* {user?.role === 'admin' && (
                               <Button onClick={() => handleAddRound(selectedEvent)}>
                                 <Plus className="h-4 w-4 mr-2" />
                                 Add First Round
                               </Button>
-                            )}
+                            )} */}
                           </CardContent>
                         </Card>
                       )}
@@ -834,6 +758,109 @@ const Events = () => {
                   </div>
                 </TabsContent>
                 
+                {/* Disabled for now */}
+                {/* {user?.role === 'admin' && (
+                  <TabsContent value="edit" className="space-y-6">
+                    <div className="space-y-4">
+                      <h3 className="text-lg font-semibold">Edit Event</h3>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <Label htmlFor="event-name">Event Name</Label>
+                          <Input
+                            id="event-name"
+                            value={editingEvent?.name || selectedEvent.name}
+                            onChange={(e) => editingEvent && setEditingEvent({...editingEvent, name: e.target.value})}
+                            disabled={!editingEvent}
+                          />
+                        </div>
+                        <div>
+                          <Label htmlFor="event-code">Event Code</Label>
+                          <Input
+                            id="event-code"
+                            value={editingEvent?.event_code || selectedEvent.event_code}
+                            onChange={(e) => editingEvent && setEditingEvent({...editingEvent, event_code: e.target.value})}
+                            disabled={!editingEvent}
+                          />
+                        </div>
+                        <div>
+                          <Label htmlFor="event-type">Event Type</Label>
+                          <Select
+                            value={editingEvent?.type || selectedEvent.type}
+                            onValueChange={(value) => editingEvent && setEditingEvent({...editingEvent, type: value as 'title' | 'rolling'})}
+                            disabled={!editingEvent}
+                          >
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="title">Title Event</SelectItem>
+                              <SelectItem value="rolling">Rolling Event</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div>
+                          <Label htmlFor="event-status">Status</Label>
+                          <Select
+                            value={editingEvent?.status || selectedEvent.status}
+                            onValueChange={(value) => editingEvent && setEditingEvent({...editingEvent, status: value as 'upcoming' | 'in_progress' | 'completed'})}
+                            disabled={!editingEvent}
+                          >
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="upcoming">Upcoming</SelectItem>
+                              <SelectItem value="in_progress">In Progress</SelectItem>
+                              <SelectItem value="completed">Completed</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div>
+                          <Label htmlFor="event-venue">Venue</Label>
+                          <Input
+                            id="event-venue"
+                            value={editingEvent?.venue || selectedEvent.venue || ''}
+                            onChange={(e) => editingEvent && setEditingEvent({...editingEvent, venue: e.target.value || undefined})}
+                            disabled={!editingEvent}
+                          />
+                        </div>
+                      </div>
+                      <div>
+                        <Label htmlFor="event-description">Description</Label>
+                        <Textarea
+                          id="event-description"
+                          value={editingEvent?.description || selectedEvent.description || ''}
+                          onChange={(e) => editingEvent && setEditingEvent({...editingEvent, description: e.target.value})}
+                          disabled={!editingEvent}
+                          rows={3}
+                        />
+                      </div>
+                      
+                      <div className="flex items-center gap-2">
+                        {!editingEvent ? (
+                          <Button onClick={() => setEditingEvent({...selectedEvent})}>
+                            <Edit className="h-4 w-4 mr-2" />
+                            Edit Event
+                          </Button>
+                        ) : (
+                          <>
+                            <Button onClick={handleSaveEvent}>
+                              <Save className="h-4 w-4 mr-2" />
+                              Save Changes
+                            </Button>
+                            <Button
+                              variant="outline"
+                              onClick={() => setEditingEvent(null)}
+                            >
+                              <X className="h-4 w-4 mr-2" />
+                              Cancel
+                            </Button>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  </TabsContent>
+                )} */}
               </Tabs>
             </DialogContent>
           </Dialog>
