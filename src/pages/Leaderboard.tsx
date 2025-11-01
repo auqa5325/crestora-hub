@@ -63,6 +63,9 @@ const Leaderboard = () => {
   const [isExportingCSV, setIsExportingCSV] = useState(false);
   const [isExportingOfficialPDF, setIsExportingOfficialPDF] = useState(false);
   const [isExportingDetailedPDF, setIsExportingDetailedPDF] = useState(false);
+  
+  // PDF export dialog state
+  const [isPDFExportDialogOpen, setIsPDFExportDialogOpen] = useState(false);
 
   const { data: teams, isLoading: teamsLoading } = useQuery<Team[]>({
     queryKey: ['teams'],
@@ -469,9 +472,16 @@ const Leaderboard = () => {
     }
   };
 
+  // Handle PDF export dialog open
+  const handleExportOfficialPDFClick = () => {
+    setIsPDFExportDialogOpen(true);
+  };
+
   // Export leaderboard as PDF (Official Format)
-  const exportLeaderboardPDF = async (formatType: 'official' | 'detailed' = 'official') => {
-    if (formatType === 'official') {
+  const exportLeaderboardPDF = async (formatType: 'official' | 'detailed' | 'shortlisted' = 'official') => {
+    setIsPDFExportDialogOpen(false);
+    
+    if (formatType === 'official' || formatType === 'shortlisted') {
       setIsExportingOfficialPDF(true);
     } else {
       setIsExportingDetailedPDF(true);
@@ -489,9 +499,15 @@ const Leaderboard = () => {
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = formatType === 'official' 
-        ? `Crestora_Round${roundNumber}_results.pdf`
-        : 'CRESTORA25_Detailed_Leaderboard.pdf';
+      let filename = '';
+      if (formatType === 'official') {
+        filename = `Crestora_Round${roundNumber}_results.pdf`;
+      } else if (formatType === 'shortlisted') {
+        filename = `Crestora_Round${roundNumber}_shortlisted.pdf`;
+      } else {
+        filename = 'CRESTORA25_Detailed_Leaderboard.pdf';
+      }
+      a.download = filename;
       document.body.appendChild(a);
       a.click();
       window.URL.revokeObjectURL(url);
@@ -508,7 +524,7 @@ const Leaderboard = () => {
         variant: "destructive",
       });
     } finally {
-      if (formatType === 'official') {
+      if (formatType === 'official' || formatType === 'shortlisted') {
         setIsExportingOfficialPDF(false);
       } else {
         setIsExportingDetailedPDF(false);
@@ -620,12 +636,12 @@ const Leaderboard = () => {
             </Button>
             <Button 
               variant="outline" 
-              onClick={() => exportLeaderboardPDF('official')} 
+              onClick={handleExportOfficialPDFClick} 
               disabled={isExportingOfficialPDF}
               className="flex-1 sm:flex-none min-w-[140px]"
             >
               <Download className="h-4 w-4 mr-2" />
-              <span className="hidden sm:inline">{isExportingOfficialPDF ? 'Generating...' : 'Official PDF'}</span>
+              <span className="hidden sm:inline">{isExportingOfficialPDF ? 'Generating...' : 'Export Official PDF'}</span>
               <span className="sm:hidden">{isExportingOfficialPDF ? '...' : 'Official'}</span>
             </Button>
             <Button 
@@ -1152,6 +1168,63 @@ const Leaderboard = () => {
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+
+        {/* PDF Export Type Selection Dialog */}
+        <Dialog open={isPDFExportDialogOpen} onOpenChange={setIsPDFExportDialogOpen}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Download className="h-5 w-5" />
+                Export Official PDF
+              </DialogTitle>
+              <DialogDescription>
+                Choose the format for the official PDF export
+              </DialogDescription>
+            </DialogHeader>
+            
+            <div className="space-y-4">
+              <div className="grid gap-4">
+                <Button
+                  onClick={() => exportLeaderboardPDF('official')}
+                  disabled={isExportingOfficialPDF}
+                  variant="outline"
+                  className="w-full justify-start h-auto py-4"
+                >
+                  <div className="flex flex-col items-start">
+                    <span className="font-semibold">Ranking</span>
+                    <span className="text-sm text-muted-foreground font-normal">
+                      Export with team rankings based on scores
+                    </span>
+                  </div>
+                </Button>
+                
+                <Button
+                  onClick={() => exportLeaderboardPDF('shortlisted')}
+                  disabled={isExportingOfficialPDF}
+                  variant="outline"
+                  className="w-full justify-start h-auto py-4"
+                >
+                  <div className="flex flex-col items-start">
+                    <span className="font-semibold">Shortlisted</span>
+                    <span className="text-sm text-muted-foreground font-normal">
+                      Export with teams sorted alphabetically (no ranking)
+                    </span>
+                  </div>
+                </Button>
+              </div>
+            </div>
+            
+            <div className="flex justify-end gap-2">
+              <Button 
+                variant="outline" 
+                onClick={() => setIsPDFExportDialogOpen(false)}
+                disabled={isExportingOfficialPDF}
+              >
+                Cancel
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
 
         {/* Email Export Modal */}
         <Dialog open={isEmailModalOpen} onOpenChange={setIsEmailModalOpen}>

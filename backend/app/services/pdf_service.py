@@ -180,8 +180,8 @@ class PDFService:
                         <td>{team['team_name']}</td>
                         <td>{team['leader_name']}</td>
                         <td>{team['final_score']:.2f}</td>
-                        <td>{team.get('normalized_score', 0):.2f}%</td>
-                        <td>{team['status']}</td>
+                    <td>{team.get('normalized_score', 0):.2f}%</td>
+                    <td>{team['status']}</td>
                     </tr>
             """
         
@@ -191,6 +191,79 @@ class PDFService:
         </body>
         </html>
         """
+        
+        # Generate PDF from HTML
+        pdf_bytes = HTML(string=html_content).write_pdf()
+        
+        return pdf_bytes
+    
+    def generate_shortlisted_leaderboard_pdf(
+        self,
+        teams: List[Dict[str, Any]],
+        event_name: str = "CRESTORA'25",
+        round_number: int = 3
+    ) -> bytes:
+        """
+        Generate shortlisted leaderboard PDF sorted by team name (alphabetically)
+        
+        Args:
+            teams: List of team dictionaries with team_id, team_name
+            event_name: Name of the event (default: "CRESTORA'25")
+            round_number: Round number (default: 3)
+        
+        Returns:
+            PDF file as bytes
+        """
+        # Sort teams alphabetically by team_name
+        sorted_teams = sorted(teams, key=lambda x: (x.get("team_name") or "").upper())
+        
+        # Assign serial numbers (Si.No) starting from 1
+        for index, team in enumerate(sorted_teams, start=1):
+            team["si_no"] = index
+        
+        # Load the template
+        template = self.env.get_template('leaderboard_shortlisted.html')
+        
+        # Render the template with data
+        html_content = template.render(
+            teams=sorted_teams,
+            event_name=event_name,
+            round_number=round_number
+        )
+        
+        # Set base URL to the public directory for image resolution
+        public_dir = Path(__file__).parent.parent.parent / 'public'
+        
+        # Convert images to base64 for embedding
+        left_logo_path = public_dir / 'left.png'
+        right_logo_path = public_dir / 'right.png'
+        water_logo_path = public_dir / 'water.png'
+        
+        if left_logo_path.exists():
+            with open(left_logo_path, 'rb') as f:
+                left_logo_b64 = base64.b64encode(f.read()).decode('utf-8')
+                left_logo_data = f'data:image/png;base64,{left_logo_b64}'
+        else:
+            left_logo_data = ''
+        
+        if right_logo_path.exists():
+            with open(right_logo_path, 'rb') as f:
+                right_logo_b64 = base64.b64encode(f.read()).decode('utf-8')
+                right_logo_data = f'data:image/png;base64,{right_logo_b64}'
+        else:
+            right_logo_data = ''
+        
+        if water_logo_path.exists():
+            with open(water_logo_path, 'rb') as f:
+                water_logo_b64 = base64.b64encode(f.read()).decode('utf-8')
+                water_logo_data = f'data:image/png;base64,{water_logo_b64}'
+        else:
+            water_logo_data = ''
+        
+        # Replace relative image paths with base64 data URLs
+        html_content = html_content.replace('src="public/left.png"', f'src="{left_logo_data}"')
+        html_content = html_content.replace('src="public/right.png"', f'src="{right_logo_data}"')
+        html_content = html_content.replace('src="public/water.png"', f'src="{water_logo_data}"')
         
         # Generate PDF from HTML
         pdf_bytes = HTML(string=html_content).write_pdf()

@@ -677,8 +677,8 @@ async def export_leaderboard_pdf(
         if not teams:
             raise HTTPException(status_code=404, detail="No leaderboard data found to export")
         
-        # Filter only ACTIVE teams for official PDF
-        if format_type == "official":
+        # Filter only ACTIVE teams for official and shortlisted PDFs
+        if format_type in ["official", "shortlisted"]:
             teams = [team for team in teams if team.get("status") == "ACTIVE"]
         
         # Remove emojis from team names
@@ -717,6 +717,13 @@ async def export_leaderboard_pdf(
                 round_number=round_number
             )
             filename = f"Crestora_Round{round_number}_results.pdf"
+        elif format_type == "shortlisted":
+            pdf_bytes = pdf_service.generate_shortlisted_leaderboard_pdf(
+                teams=teams,
+                event_name="CRESTORA'25",
+                round_number=round_number
+            )
+            filename = f"Crestora_Round{round_number}_shortlisted.pdf"
         else:
             pdf_bytes = pdf_service.generate_detailed_leaderboard_pdf(
                 teams=teams,

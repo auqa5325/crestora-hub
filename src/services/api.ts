@@ -642,7 +642,7 @@ class ApiService {
     return response.blob();
   }
 
-  async exportLeaderboardPDF(roundNumber?: number, formatType: 'official' | 'detailed' = 'official'): Promise<Blob> {
+  async exportLeaderboardPDF(roundNumber?: number, formatType: 'official' | 'detailed' | 'shortlisted' = 'official'): Promise<Blob> {
     const params = new URLSearchParams();
     if (roundNumber) {
       params.append('round_number', roundNumber.toString());
