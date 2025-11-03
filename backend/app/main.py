@@ -28,6 +28,8 @@ app.add_middleware(
         "http://13.127.109.143:8080",
         "http://13.127.109.143:8080",
         "http://3.110.179.41:8080",
+        "http://13.233.80.196:8080",
+        "http://13.233.80.196:8080/login",
     ],
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
