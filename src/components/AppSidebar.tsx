@@ -29,9 +29,9 @@ const menuItems = [
   // Temporarily hidden - Dashboard
   // { title: "Dashboard", url: "/dashboard", icon: Home, roles: ["admin", "clubs"] },
   { title: "Events", url: "/events", icon: Calendar, roles: ["admin", "clubs"] },
-  { title: "Rounds", url: "/rounds", icon: Target, roles: ["admin", "clubs"] },
+  { title: "Rounds", url: "/rounds", icon: Target, roles: ["admin", "clubs", "student"] },
   { title: "Teams", url: "/teams", icon: Users, roles: ["admin", "clubs"] },
-  { title: "Leaderboard", url: "/leaderboard", icon: Trophy, roles: ["admin"] },
+  { title: "Leaderboard", url: "/leaderboard", icon: Trophy, roles: ["admin", "student"] },
   { title: "PDA Round Management", url: "/pda-round-management", icon: Wrench, roles: ["admin"] },
   { title: "Club Round Management", url: "/club-round-management", icon: Wrench, roles: ["clubs"] },
   { title: "Rolling Events Management", url: "/rolling-events-management", icon: Calendar, roles: ["admin", "clubs"] },
@@ -42,7 +42,7 @@ const menuItems = [
 
 const bottomMenuItems = [
   { title: "Settings", url: "/settings", icon: Settings, roles: ["admin", "judge", "clubs"] },
-  { title: "Logout", url: "/", icon: LogOut, roles: ["admin", "judge", "clubs"] },
+  { title: "Logout", url: "/", icon: LogOut, roles: ["admin", "judge", "clubs", "student"] },
 ];
 
 export function AppSidebar() {
