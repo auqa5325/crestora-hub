@@ -26,14 +26,14 @@ app.add_middleware(
         "http://127.0.0.1:3000",
         "http://3.110.143.60:8080",
         "http://13.127.109.143:8080",
-        "http://13.127.109.143:8080",
         "http://3.110.179.41:8080",
-        "http://13.233.80.196:8080",
-        "http://13.233.80.196:8080",
+        "http://13.233.80.196:8080",  # Frontend
+        "http://13.233.80.196:8000",  # Backend
     ],
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["*"]
 )
 
 # Root endpoint
